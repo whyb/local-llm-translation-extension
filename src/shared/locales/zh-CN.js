@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': '保护难以处理的页面和长时间运行的翻译任务。',
   'Observe actual runs, cache health and failures.': '观察实际运行情况、缓存健康状况和失败。',
   'Could not render this section: {error}': '无法显示此分区：{error}',
-  'Background save failed': '后台保存失败',
   'Save failed: {error}': '保存失败：{error}',
   'Failed to load settings: {error}': '无法加载设置：{error}',
   'Add provider': '添加服务提供商',

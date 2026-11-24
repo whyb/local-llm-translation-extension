@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'محافظت از صفحات دشوار و ترجمه‌های طولانی.',
   'Observe actual runs, cache health and failures.': 'مشاهده اجراهای واقعی، سلامت حافظه نهان و خطاها.',
   'Could not render this section: {error}': 'رندر این بخش ممکن نشد: {error}',
-  'Background save failed': 'ذخیره در پس‌زمینه ناموفق بود',
   'Save failed: {error}': 'ذخیره ناموفق بود: {error}',
   'Failed to load settings: {error}': 'بارگذاری تنظیمات ناموفق بود: {error}',
   'Add provider': 'افزودن ارائه‌دهنده',

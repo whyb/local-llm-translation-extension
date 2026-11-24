@@ -96,22 +96,19 @@ function render() {
 async function save(showMessage = true) {
   saveButton.disabled = true;
   try {
-    const response = await sendRuntimeMessage({ type: 'save-settings', settings });
-    if (!response?.ok) throw new Error(response?.error || t('Background save failed'));
-    settings = normalizeSettings(response.settings ?? settings);
+    settings = normalizeSettings(await saveSettings(settings));
     markSaved();
+    // The options page owns the write. Notify the background for site-script
+    // synchronization, but never make the dialog wait on the message channel.
+    void Promise.resolve()
+      .then(() => sendRuntimeMessage({ type: 'save-settings', settings }))
+      .catch(() => {});
     if (showMessage) render();
     return true;
-  } catch {
-    try {
-      settings = await saveSettings(settings);
-      markSaved();
-      return true;
-    } catch (error) {
-      saveStatus.textContent = t('Save failed: {error}', { error: error instanceof Error ? error.message : String(error) });
-      saveStatus.className = 'save-status dirty';
-      return false;
-    }
+  } catch (error) {
+    saveStatus.textContent = t('Save failed: {error}', { error: error instanceof Error ? error.message : String(error) });
+    saveStatus.className = 'save-status dirty';
+    return false;
   } finally {
     saveButton.disabled = false;
   }

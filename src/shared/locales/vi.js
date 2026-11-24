@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'Bảo vệ các trang khó và các bản dịch chạy lâu.',
   'Observe actual runs, cache health and failures.': 'Theo dõi các lần chạy thực tế, tình trạng bộ nhớ đệm và lỗi.',
   'Could not render this section: {error}': 'Không thể hiển thị mục này: {error}',
-  'Background save failed': 'Lưu nền thất bại',
   'Save failed: {error}': 'Lưu thất bại: {error}',
   'Failed to load settings: {error}': 'Không thể tải cài đặt: {error}',
   'Add provider': 'Thêm nhà cung cấp',

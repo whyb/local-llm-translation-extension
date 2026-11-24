@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': '扱いにくいページと長時間の翻訳を保護します。',
   'Observe actual runs, cache health and failures.': '実際の実行、キャッシュの状態、失敗を確認します。',
   'Could not render this section: {error}': 'このセクションを表示できませんでした：{error}',
-  'Background save failed': 'バックグラウンドでの保存に失敗しました',
   'Save failed: {error}': '保存に失敗しました：{error}',
   'Failed to load settings: {error}': '設定を読み込めませんでした：{error}',
   'Add provider': 'プロバイダーを追加',

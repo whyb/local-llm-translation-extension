@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'Linda kurasa ngumu na tafsiri zinazochukua muda mrefu.',
   'Observe actual runs, cache health and failures.': 'Fuatilia uendeshaji halisi, afya ya akiba na hitilafu.',
   'Could not render this section: {error}': 'Imeshindwa kuonyesha sehemu hii: {error}',
-  'Background save failed': 'Uhifadhi wa chinichini umeshindwa',
   'Save failed: {error}': 'Uhifadhi umeshindwa: {error}',
   'Failed to load settings: {error}': 'Imeshindwa kupakia mipangilio: {error}',
   'Add provider': 'Ongeza mtoa huduma',

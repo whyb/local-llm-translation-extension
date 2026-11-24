@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'কঠিন পৃষ্ঠা ও দীর্ঘমেয়াদি অনুবাদ সুরক্ষিত রাখুন।',
   'Observe actual runs, cache health and failures.': 'প্রকৃত রান, ক্যাশের অবস্থা ও ব্যর্থতা পর্যবেক্ষণ করুন।',
   'Could not render this section: {error}': 'এই অংশটি রেন্ডার করা যায়নি: {error}',
-  'Background save failed': 'ব্যাকগ্রাউন্ডে সংরক্ষণ ব্যর্থ হয়েছে',
   'Save failed: {error}': 'সংরক্ষণ ব্যর্থ হয়েছে: {error}',
   'Failed to load settings: {error}': 'সেটিংস লোড করা যায়নি: {error}',
   'Add provider': 'প্রোভাইডার যোগ করুন',

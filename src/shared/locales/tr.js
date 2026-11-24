@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'Zor sayfaları ve uzun süren çevirileri koruyun.',
   'Observe actual runs, cache health and failures.': 'Gerçek çalıştırmaları, önbellek durumunu ve hataları izleyin.',
   'Could not render this section: {error}': 'Bu bölüm oluşturulamadı: {error}',
-  'Background save failed': 'Arka planda kaydetme başarısız oldu',
   'Save failed: {error}': 'Kaydetme başarısız oldu: {error}',
   'Failed to load settings: {error}': 'Ayarlar yüklenemedi: {error}',
   'Add provider': 'Sağlayıcı ekle',

@@ -5,9 +5,15 @@
  * promises for the MV3 APIs used here. Keeping this in one place makes the
  * rest of the codebase free of namespace conditionals.
  */
-export const extension = globalThis.browser ?? globalThis.chrome;
 
 export const isFirefox = typeof navigator !== 'undefined' && /Firefox/i.test(navigator.userAgent);
+
+// Edge exposes both namespaces. Its `browser` alias is not the same object as
+// `chrome` and can differ in callback behavior, so Chromium browsers must use
+// the native `chrome` surface. Firefox keeps its promise-based `browser` API.
+export const extension = isFirefox
+  ? globalThis.browser ?? globalThis.chrome
+  : globalThis.chrome ?? globalThis.browser;
 export const isChromeLike = !isFirefox;
 
 export const runtime = extension?.runtime;

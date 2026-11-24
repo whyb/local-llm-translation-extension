@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'Защищайте сложные страницы и длительные переводы.',
   'Observe actual runs, cache health and failures.': 'Наблюдайте за фактическими запусками, состоянием кэша и сбоями.',
   'Could not render this section: {error}': 'Не удалось отобразить этот раздел: {error}',
-  'Background save failed': 'Не удалось сохранить в фоне',
   'Save failed: {error}': 'Не удалось сохранить: {error}',
   'Failed to load settings: {error}': 'Не удалось загрузить настройки: {error}',
   'Add provider': 'Добавить провайдера',

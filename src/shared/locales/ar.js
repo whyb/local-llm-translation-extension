@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'احمِ الصفحات الصعبة والترجمات الطويلة.',
   'Observe actual runs, cache health and failures.': 'راقب عمليات التشغيل الفعلية وسلامة ذاكرة التخزين المؤقت والإخفاقات.',
   'Could not render this section: {error}': 'تعذّر عرض هذا القسم: {error}',
-  'Background save failed': 'فشل الحفظ في الخلفية',
   'Save failed: {error}': 'فشل الحفظ: {error}',
   'Failed to load settings: {error}': 'تعذّر تحميل الإعدادات: {error}',
   'Add provider': 'إضافة مزوّد',

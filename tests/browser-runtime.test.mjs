@@ -46,3 +46,35 @@ test('Chromium runtime listeners keep async sendResponse behavior', async () => 
   assert.deepEqual(response, { ok: true, value: 7 });
   delete globalThis.chrome;
 });
+test('Edge uses the native chrome namespace instead of its browser alias', async () => {
+  let usedNamespace = null;
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/158.0.0.0 Safari/537.36 Edg/158.0.0.0' },
+    configurable: true
+  });
+  const browserNamespace = {
+    runtime: {
+      sendMessage: async () => {
+        usedNamespace = 'browser';
+        return { namespace: 'browser' };
+      }
+    }
+  };
+  const chromeNamespace = {
+    runtime: {
+      sendMessage: async () => {
+        usedNamespace = 'chrome';
+        return { namespace: 'chrome' };
+      }
+    }
+  };
+  globalThis.browser = browserNamespace;
+  globalThis.chrome = chromeNamespace;
+  const browser = await import('../src/shared/browser.js?edge-runtime-test');
+  assert.equal(browser.isFirefox, false);
+  assert.equal(browser.extension, chromeNamespace);
+  assert.deepEqual(await browser.sendRuntimeMessage({ type: 'test' }), { namespace: 'chrome' });
+  assert.equal(usedNamespace, 'chrome');
+  delete globalThis.browser;
+  delete globalThis.chrome;
+});

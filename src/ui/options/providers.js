@@ -342,31 +342,28 @@ function openProviderEditor(ctx, existing) {
     )
   ));
 
-  const cancel = button('Cancel', 'secondary', () => { dialog.close(); dialog.remove(); });
+  let dialogClosing = false;
+  const closeDialog = () => {
+    if (dialogClosing) return;
+    dialogClosing = true;
+    try {
+      if (dialog.open) dialog.close();
+    } catch {
+      // Edge can reject close() if the modal state changed while saving.
+    }
+    dialog.remove();
+  };
+  const cancel = button('Cancel', 'secondary', closeDialog);
   const save = button('Save changes', 'primary', async () => {
     error.textContent = '';
     if (!draft.name.trim()) { error.textContent = t('Profile name is required.'); return; }
     if (!draft.baseUrl.trim()) { error.textContent = t('Base URL is required.'); return; }
     save.disabled = true;
     cancel.disabled = true;
-    const previousProfiles = settings.providers.profiles;
+    const previousProfiles = cloneProfile(settings.providers.profiles);
     const previousSelectedId = settings.providers.selectedProfileId;
+    const shouldProbe = settings.providers.autoProbeOnSave;
     try {
-      if (settings.providers.autoProbeOnSave) {
-        try {
-          const metadata = await sendRuntimeMessage({
-            type: 'refresh-models-request',
-            profile: draft,
-            timeoutMs: Math.min(Number(draft.timeoutMs) || 120000, 8000)
-          });
-          if (metadata?.ok) {
-            const entries = (metadata.models ?? []).filter((model) => typeof model?.id === 'string');
-            modelContextById = new Map(entries.map((model) => [model.id, Number(model.contextLength) || null]));
-            const selectedId = entries.some((model) => model.id === draft.model) ? draft.model : entries[0]?.id ?? null;
-            applyContextLength(metadata.contextLength ?? modelContextById.get(selectedId));
-          }
-        } catch { /* Saving still works when metadata probing is unavailable. */ }
-      }
       if (isNew) settings.providers.profiles.push(draft);
       else settings.providers.profiles = settings.providers.profiles.map((profile) => profile.id === draft.id ? draft : profile);
       if (!settings.providers.selectedProfileId && settings.providers.profiles.length === 1) settings.providers.selectedProfileId = draft.id;
@@ -377,9 +374,16 @@ function openProviderEditor(ctx, existing) {
         settings.providers.selectedProfileId = previousSelectedId;
         throw new Error(t('Save failed: {error}', { error: t('unknown') }));
       }
-      dialog.close();
-      dialog.remove();
+      closeDialog();
       render();
+      if (shouldProbe) {
+        const probeProfile = cloneProfile(draft);
+        // Probe after the UI has closed so an unreachable endpoint can never
+        // make Save changes appear unresponsive.
+        void Promise.resolve()
+          .then(() => sendRuntimeMessage({ type: 'probe-profile-request', profile: probeProfile }))
+          .catch(() => {});
+      }
     } catch (exception) {
       error.textContent = exception instanceof Error ? exception.message : String(exception);
     } finally {
@@ -391,8 +395,8 @@ function openProviderEditor(ctx, existing) {
   body.append(connection, generation, thinking, reliability, requestOverrides);
   form.append(header, body, footer);
   dialog.append(form);
-  dialog.addEventListener('cancel', (event) => { event.preventDefault(); dialog.close(); dialog.remove(); });
-  dialog.addEventListener('click', (event) => { if (event.target === dialog) { dialog.close(); dialog.remove(); } });
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); closeDialog(); });
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) closeDialog(); });
   document.body.append(dialog);
   if (typeof dialog.showModal === 'function') dialog.showModal();
   else dialog.setAttribute('open', '');

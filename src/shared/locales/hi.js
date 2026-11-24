@@ -39,7 +39,6 @@ export default Object.freeze({
   "Protect difficult pages and long-running translations.": "कठिन पृष्ठों और लंबे समय तक चलने वाले अनुवादों को सुरक्षित रखें।",
   "Observe actual runs, cache health and failures.": "वास्तविक रन, कैश स्वास्थ्य और विफलताओं का निरीक्षण करें।",
   "Could not render this section: {error}": "इस अनुभाग को प्रस्तुत नहीं किया जा सका: {error}",
-  "Background save failed": "पृष्ठभूमि सहेजना विफल रहा",
   "Save failed: {error}": "सहेजना विफल: {error}",
   "Failed to load settings: {error}": "सेटिंग्स लोड करने में विफल: {error}",
   "Add provider": "प्रदाता जोड़ें",

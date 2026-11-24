@@ -2,7 +2,10 @@
 (() => {
   'use strict';
 
-  const api = globalThis.browser ?? globalThis.chrome;
+  const contentIsFirefox = /Firefox/i.test(navigator.userAgent);
+  const api = contentIsFirefox
+    ? globalThis.browser ?? globalThis.chrome
+    : globalThis.chrome ?? globalThis.browser;
   const SETTINGS_KEY = 'lbt.settings';
   const SKIP_TAGS = new Set(['script', 'style', 'noscript', 'template', 'svg', 'canvas', 'iframe', 'object', 'embed', 'select', 'option', 'textarea']);
   const SKIP_ANCESTOR_TAGS = new Set(['script', 'style', 'noscript', 'template', 'svg', 'canvas', 'select', 'textarea']);

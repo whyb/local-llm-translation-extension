@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'ปกป้องหน้าที่ซับซ้อนและการแปลที่ใช้เวลานาน',
   'Observe actual runs, cache health and failures.': 'ตรวจสอบการทำงานจริง, สุขภาพของแคช และข้อผิดพลาด',
   'Could not render this section: {error}': 'ไม่สามารถแสดงส่วนนี้ได้: {error}',
-  'Background save failed': 'บันทึกเบื้องหลังล้มเหลว',
   'Save failed: {error}': 'บันทึกล้มเหลว: {error}',
   'Failed to load settings: {error}': 'โหลดการตั้งค่าล้มเหลว: {error}',
   'Add provider': 'เพิ่มผู้ให้บริการ',

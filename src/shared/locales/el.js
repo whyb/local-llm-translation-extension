@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': 'Προστατέψτε δύσκολες σελίδες και μεταφράσεις μεγάλης διάρκειας.',
   'Observe actual runs, cache health and failures.': 'Παρατηρήστε πραγματικές εκτελέσεις, κατάσταση cache και αποτυχίες.',
   'Could not render this section: {error}': 'Δεν ήταν δυνατή η απόδοση αυτής της ενότητας: {error}',
-  'Background save failed': 'Η αποθήκευση στο παρασκήνιο απέτυχε',
   'Save failed: {error}': 'Η αποθήκευση απέτυχε: {error}',
   'Failed to load settings: {error}': 'Δεν ήταν δυνατή η φόρτωση των ρυθμίσεων: {error}',
   'Add provider': 'Προσθήκη παρόχου',

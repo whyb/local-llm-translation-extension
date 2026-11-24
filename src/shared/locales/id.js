@@ -39,7 +39,6 @@ export default Object.freeze({
   "Protect difficult pages and long-running translations.": "Lindungi halaman yang sulit dan terjemahan yang sudah berjalan lama.",
   "Observe actual runs, cache health and failures.": "Amati proses aktual, kesehatan cache, dan kegagalan.",
   "Could not render this section: {error}": "Tidak dapat merender bagian ini: {error}",
-  "Background save failed": "Penyimpanan latar belakang gagal",
   "Save failed: {error}": "Gagal menyimpan: {error}",
   "Failed to load settings: {error}": "Gagal memuat pengaturan: {error}",
   "Add provider": "Tambahkan penyedia",

@@ -39,7 +39,6 @@ export default Object.freeze({
   'Protect difficult pages and long-running translations.': '까다로운 페이지와 장시간 번역 작업을 보호합니다.',
   'Observe actual runs, cache health and failures.': '실제 실행, 캐시 상태 및 실패를 확인합니다.',
   'Could not render this section: {error}': '이 섹션을 표시할 수 없습니다: {error}',
-  'Background save failed': '백그라운드 저장에 실패했습니다',
   'Save failed: {error}': '저장 실패: {error}',
   'Failed to load settings: {error}': '설정을 불러오지 못했습니다: {error}',
   'Add provider': '제공자 추가',

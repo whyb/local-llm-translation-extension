@@ -39,7 +39,6 @@ export default Object.freeze({
   "Protect difficult pages and long-running translations.": "Proteja páginas difíceis e traduções de longa duração.",
   "Observe actual runs, cache health and failures.": "Acompanhe execuções reais, a integridade do cache e as falhas.",
   "Could not render this section: {error}": "Não foi possível renderizar esta seção: {error}",
-  "Background save failed": "Falha ao salvar em segundo plano",
   "Save failed: {error}": "Falha ao salvar: {error}",
   "Failed to load settings: {error}": "Falha ao carregar as configurações: {error}",
   "Add provider": "Adicionar provedor",
