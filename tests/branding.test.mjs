@@ -12,11 +12,11 @@ test('product branding is applied consistently', async () => {
     read('../src/ui/options/index.html'),
     read('../src/content/main.js')
   ]);
-  assert.match(chromeManifest, /"name": "Local LLM Translator"/);
-  assert.match(firefoxManifest, /"name": "Local LLM Translator"/);
-  assert.match(popup, /Local LLM Translator/);
-  assert.match(options, /Local LLM Translator/);
-  assert.match(content, /Local LLM Translator/);
+  assert.match(chromeManifest, /"name": "Local LLM Translator Pro"/);
+  assert.match(firefoxManifest, /"name": "Local LLM Translator Pro"/);
+  assert.match(popup, /Local LLM Translator Pro/);
+  assert.match(options, /Local LLM Translator Pro/);
+  assert.match(content, /Local LLM Translator Pro/);
 });
 
 test('settings brand mark sizing does not override the logo itself', async () => {

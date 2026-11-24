@@ -1,4 +1,4 @@
-# Local LLM Translator
+# Local LLM Translator Pro
 
 An original, framework-free browser extension for Firefox, Chrome and Edge. It translates web pages and selections with a user-configured local or cloud model endpoint, without analytics or a telemetry endpoint.
 
@@ -24,7 +24,7 @@ The extension never uses `eval`, `new Function`, dynamic imports, remote scripts
 
 ## Development
 
-Requirements: Node.js 20 or newer, Firefox 115+ or a current Chrome/Edge.
+Requirements: Node.js 20 or newer, Firefox 140+ on desktop, Firefox for Android 142+, or a current Chrome/Edge.
 
 ```powershell
 npm run check
@@ -103,11 +103,11 @@ Push a tag matching `v*.*.*`, for example `v2.0.0`. The GitHub Actions workflow 
 
 Release assets include:
 
-- `local-llm-translator-chrome-vX.Y.Z.zip`
-- `local-llm-translator-edge-vX.Y.Z.zip`
-- `local-llm-translator-firefox-vX.Y.Z.xpi`
-- `local-llm-translator-chrome-vX.Y.Z.crx`
-- `local-llm-translator-edge-vX.Y.Z.crx`
+- `local-llm-translator-pro-chrome-vX.Y.Z.zip`
+- `local-llm-translator-pro-edge-vX.Y.Z.zip`
+- `local-llm-translator-pro-firefox-vX.Y.Z.xpi`
+- `local-llm-translator-pro-chrome-vX.Y.Z.crx`
+- `local-llm-translator-pro-edge-vX.Y.Z.crx`
 
 Optional repository secrets:
 

@@ -119,14 +119,14 @@
       this.fabShell.dataset.complete = 'false';
       this.fabShell.dataset.indeterminate = 'false';
       this.fab = el('button', 'lbt-fab', '译');
-      this.fab.title = 'Local LLM Translator';
+      this.fab.title = 'Local LLM Translator Pro';
       this.fab.addEventListener('click', () => {
         this.panel.hidden = !this.panel.hidden;
       });
       this.panel = el('div', 'lbt-panel');
       this.panel.hidden = true;
       const title = el('div', 'lbt-title');
-      title.append(el('span', '', 'Local LLM Translator'));
+      title.append(el('span', '', 'Local LLM Translator Pro'));
       const close = el('button', 'lbt-close', '×');
       close.style.border = '0'; close.style.background = 'transparent'; close.style.cursor = 'pointer'; close.style.fontSize = '18px';
       close.addEventListener('click', () => { this.panel.hidden = true; });
@@ -211,7 +211,7 @@
       this.fabShell.dataset.complete = String(complete && !this.translating);
       this.fab.classList.remove('is-progress');
       this.fab.textContent = this.translating ? '…' : complete ? '✓' : '译';
-      this.fab.title = this.translating ? 'Local LLM Translator — translating' : complete ? 'Local LLM Translator — complete' : 'Local LLM Translator';
+      this.fab.title = this.translating ? 'Local LLM Translator Pro — translating' : complete ? 'Local LLM Translator Pro — complete' : 'Local LLM Translator Pro';
       this.fab.setAttribute('aria-label', this.fab.title);
       if (this.translating) this.fabShell.style.setProperty('--lbt-fab-progress', '0%');
     }
@@ -231,7 +231,7 @@
         const complete = this.progress.done >= this.progress.total;
         this.fab.textContent = complete ? '✓' : `${percent}%`;
         this.fab.classList.toggle('is-progress', !complete);
-        const label = `Local LLM Translator — ${this.progress.done}/${this.progress.total} (${percent}%)`;
+        const label = `Local LLM Translator Pro — ${this.progress.done}/${this.progress.total} (${percent}%)`;
         this.fab.title = label;
         this.fab.setAttribute('aria-label', label);
       } else if (this.fab && this.translating) {

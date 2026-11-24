@@ -42,9 +42,9 @@ jobs:
           set -euo pipefail
           mkdir -p release
           tag="${GITHUB_REF_NAME:-manual}"
-          chrome_name="local-llm-translator-chrome-${tag}.zip"
-          edge_name="local-llm-translator-edge-${tag}.zip"
-          firefox_name="local-llm-translator-firefox-${tag}.xpi"
+          chrome_name="local-llm-translator-pro-chrome-${tag}.zip"
+          edge_name="local-llm-translator-pro-edge-${tag}.zip"
+          firefox_name="local-llm-translator-pro-firefox-${tag}.xpi"
 
           (cd dist/chrome && zip -qr "../../release/${chrome_name}" .)
           (cd dist/edge && zip -qr "../../release/${edge_name}" .)
@@ -64,7 +64,7 @@ jobs:
             mv "${signed_xpi}" "release/${firefox_name}"
           fi
 
-          key_path="${RUNNER_TEMP}/local-llm-translator-release-key.pem"
+          key_path="${RUNNER_TEMP}/local-llm-translator-pro-release-key.pem"
           if [ -n "${CRX_PRIVATE_KEY:-}" ]; then
             printf '%s' "${CRX_PRIVATE_KEY}" > "${key_path}"
           else
@@ -77,7 +77,7 @@ jobs:
               rm -f "dist/${browser}.crx"
               "${chrome_bin}" --no-sandbox --disable-gpu --pack-extension="${PWD}/dist/${browser}" --pack-extension-key="${key_path}" >/dev/null 2>&1 || true
               if [ -f "dist/${browser}.crx" ]; then
-                mv "dist/${browser}.crx" "release/local-llm-translator-${browser}-${tag}.crx"
+                mv "dist/${browser}.crx" "release/local-llm-translator-pro-${browser}-${tag}.crx"
               else
                 echo "::warning::Could not create ${browser} CRX on this runner"
               fi
@@ -91,14 +91,14 @@ jobs:
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: local-llm-translator-${{ github.ref_name }}
+          name: local-llm-translator-pro-${{ github.ref_name }}
           path: release/*
 
       - name: Publish GitHub pre-release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Local LLM Translator ${{ github.ref_name }}
+          name: Local LLM Translator Pro ${{ github.ref_name }}
           prerelease: true
           generate_release_notes: true
           fail_on_unmatched_files: true

@@ -33,7 +33,7 @@ BATCH_CASES = [
         "name": "product-page",
         "target_lang": "Simplified Chinese (zh-CN)",
         "segments": [
-            "Local LLM Translator",
+            "Local LLM Translator Pro",
             "Translate pages privately with your own model.",
             "Open settings",
             "Your changes are saved automatically.",

@@ -10,7 +10,7 @@ const rtlLocale = /^(ar|ckb|dv|fa|he|ks|ku|ps|sd|ug|ur|yi)(-|$)/i.test(uiLocale)
 document.documentElement.lang = uiLocale;
 document.documentElement.dir = rtlLocale ? 'rtl' : 'ltr';
 applyI18n(document);
-document.title = t('Local LLM Translator');
+document.title = t('Local LLM Translator Pro');
 
 const ui = {
   title: $('#page-title'), url: $('#page-url'), dot: $('#state-dot'), label: $('#state-label'), detail: $('#state-detail'),

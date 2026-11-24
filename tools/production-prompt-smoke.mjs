@@ -25,7 +25,7 @@ const settings = normalizeSettings({
 });
 const service = new TranslationService({ getSettings: () => settings });
 const units = [
-  { id: 'u1', kind: 'text', text: 'Local LLM Translator' },
+  { id: 'u1', kind: 'text', text: 'Local LLM Translator Pro' },
   { id: 'u2', kind: 'text', text: 'Open settings' },
   { id: 'u3', kind: 'text', text: 'Use {name} without translating the placeholder.' },
   { id: 'u4', kind: 'text', text: 'Read the documentation.' }
@@ -40,7 +40,7 @@ const batch = await service.translateBatch(units, {
 const promptTestBatch = await testTranslationPrompt({
   settings,
   mode: 'batch',
-  texts: ['Local LLM Translator', 'Open settings', 'Read the documentation.'],
+  texts: ['Local LLM Translator Pro', 'Open settings', 'Read the documentation.'],
   batchSize: 3
 });
 const promptTestSingle = await testTranslationPrompt({

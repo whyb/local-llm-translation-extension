@@ -50,7 +50,7 @@ if (!SECTION_META[activeSection]) activeSection = 'providers';
 let dirty = false;
 
 localizeDocument(document);
-document.title = t('Local LLM Translator — Settings');
+document.title = t('Local LLM Translator Pro — Settings');
 applyI18n(document);
 
 function markDirty() {

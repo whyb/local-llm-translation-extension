@@ -5,7 +5,7 @@ import { languageField } from './language-picker.js';
 import { promptEditor } from './prompt-editor.js';
 
 const DEFAULT_TEST_TEXT = [
-  'Local LLM Translator',
+  'Local LLM Translator Pro',
   'Open settings',
   'Your changes are saved automatically.',
   'Read the documentation.',

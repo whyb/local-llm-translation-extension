@@ -1,6 +1,6 @@
 export default Object.freeze({
-  "Local LLM Translator": "Local LLM Translator",
-  "Local LLM Translator — Settings": "Local LLM Translator — 設定",
+  "Local LLM Translator Pro": "Local LLM Translator Pro",
+  "Local LLM Translator Pro — Settings": "Local LLM Translator Pro — 設定",
   'Settings & diagnostics': '設定與診斷',
   'Settings sections': '設定區段',
   'private by design': '隱私優先設計',

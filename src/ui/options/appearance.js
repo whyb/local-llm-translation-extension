@@ -52,7 +52,7 @@ export function renderAppearance(ctx) {
   selectionPreview.setAttribute('aria-label', t('Selection button'));
   const selectionCopy = el('p', 'selection-preview-copy');
   selectionCopy.append(
-    document.createTextNode('Local LLM Translator can translate '),
+    document.createTextNode('Local LLM Translator Pro can translate '),
     el('mark', 'selection-preview-mark', 'this selected passage'),
     document.createTextNode(' without changing its HTML context.')
   );

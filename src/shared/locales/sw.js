@@ -1,6 +1,6 @@
 export default Object.freeze({
-  "Local LLM Translator": "Local LLM Translator",
-  "Local LLM Translator — Settings": "Local LLM Translator — Mipangilio",
+  "Local LLM Translator Pro": "Local LLM Translator Pro",
+  "Local LLM Translator Pro — Settings": "Local LLM Translator Pro — Mipangilio",
   'Settings & diagnostics': 'Mipangilio na uchunguzi',
   'Settings sections': 'Sehemu za mipangilio',
   'private by design': 'faragha kwa muundo',
