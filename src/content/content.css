@@ -1,0 +1,31 @@
+/* Page-level styles only. Shadow roots add their own scoped styles. */
+.lbt-bilingual-stacked { display: inline-block; max-width: 100%; vertical-align: baseline; }
+.lbt-replace-hover-reveal { display: inline; }
+.lbt-bilingual-stacked .lbt-original {
+  display: block;
+  color: color-mix(in srgb, currentColor 58%, transparent);
+  font-size: 0.86em;
+  line-height: 1.35;
+  margin-bottom: 0.15em;
+}
+.lbt-bilingual-stacked .lbt-translated {
+  display: block;
+}
+.lbt-replace-hover-reveal .lbt-original {
+  display: none;
+}
+.lbt-replace-hover-reveal .lbt-translated {
+  position: relative;
+  display: inline;
+  cursor: help;
+}
+.lbt-replace-hover-reveal .lbt-translated::after {
+  content: attr(data-lbt-original);
+  display: none;
+}
+[data-lbt-managed] {
+  isolation: isolate;
+}
+[data-lbt-ui] {
+  all: initial;
+}

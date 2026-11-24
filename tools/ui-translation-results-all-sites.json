@@ -1,0 +1,92 @@
+{
+  "keys": [
+    "All-sites access is requested once from the toolbar popup. This policy decides whether translation starts automatically.",
+    "Allow access to all websites once. Nothing is read or changed until you allow it."
+  ],
+  "locales": {
+    "zh-CN": [
+      "需通过工具栏弹窗请求一次全网站访问权限。此策略决定翻译是否自动开始。",
+      "允许一次性访问所有网站。在您允许之前，不会读取或更改任何内容。"
+    ],
+    "zh-TW": [
+      "需從工具列彈出視窗中請求一次「所有網站」的存取權。此設定決定是否自動開始翻譯。",
+      "允許一次性的所有網站存取權。在您允許之前，不會讀取或更改任何內容。"
+    ],
+    "ja": [
+      "ツールバーのポップアップから、すべてのサイトへのアクセス権が一度だけリクエストされます。この設定により、翻訳を自動的に開始するかどうかが決まります。",
+      "すべてのウェブサイトへのアクセスを一度だけ許可します。許可するまで、データの読み取りや変更は行われません。"
+    ],
+    "pt": [
+      "O acesso a todos os sites é solicitado uma vez pelo popup da barra de ferramentas. Esta política decide se a tradução começa automaticamente.",
+      "Permitir o acesso a todos os sites uma vez. Nada é lido ou alterado até que você permita."
+    ],
+    "es": [
+      "Se solicita el acceso a todos los sitios una vez desde la ventana emergente de la barra de herramientas. Esta política decide si la traducción comienza automáticamente.",
+      "Permitir el acceso a todos los sitios web una vez. No se lee ni cambia nada hasta que lo permitas."
+    ],
+    "ko": [
+      "툴바 팝업에서 모든 사이트 액세스 권한을 한 번 요청합니다. 이 설정은 번역이 자동으로 시작될지 여부를 결정합니다.",
+      "모든 웹사이트에 대한 액세스를 한 번 허용합니다. 허용하기 전까지는 아무것도 읽거나 변경하지 않습니다."
+    ],
+    "de": [
+      "Der Zugriff auf alle Websites wird einmalig über das Toolbar-Popup angefordert. Diese Einstellung bestimmt, ob die Übersetzung automatisch startet.",
+      "Einmaliger Zugriff auf alle Websites zulassen. Es werden keine Daten gelesen oder geändert, bis Sie den Zugriff erlauben."
+    ],
+    "fr": [
+      "L'accès à tous les sites est demandé une seule fois via la fenêtre contextuelle de la barre d'outils. Cette option détermine si la traduction démarre automatiquement.",
+      "Autoriser l'accès à tous les sites web une seule fois. Rien n'est lu ou modifié tant que vous ne l'avez pas autorisé."
+    ],
+    "it": [
+      "L'accesso a tutti i siti viene richiesto una volta tramite il popup della barra degli strumenti. Questa impostazione decide se la traduzione deve avviarsi automaticamente.",
+      "Consenti l'accesso a tutti i siti web una volta. Nulla verrà letto o modificato finché non darai il consenso."
+    ],
+    "th": [
+      "ต้องอนุญาตการเข้าถึงทุกเว็บไซต์หนึ่งครั้งผ่านป๊อปอัปบนแถบเครื่องมือ นโยบายนี้จะกำหนดว่าการแปลจะเริ่มทำงานโดยอัตโนมัติหรือไม่",
+      "อนุญาตให้เข้าถึงทุกเว็บไซต์หนึ่งครั้ง จะยังไม่มีการอ่านหรือเปลี่ยนแปลงข้อมูลใดๆ จนกว่าคุณจะอนุญาต"
+    ],
+    "id": [
+      "Akses ke semua situs diminta sekali melalui popup toolbar. Kebijakan ini menentukan apakah terjemahan dimulai secara otomatis.",
+      "Izinkan akses ke semua situs web sekali saja. Tidak ada yang dibaca atau diubah sampai Anda mengizinkannya."
+    ],
+    "el": [
+      "Ζητείται η πρόσβαση σε όλα τα sites μία φορά από το αναδυόμενο παράθυρο της γραμμής εργασιών. Αυτή η πολιτική καθορίζει εάν η μετάφραση ξεκινά αυτόματα.",
+      "Επιτρέψτε την πρόσβαση σε όλα τα websites μία φορά. Τίποτα δεν διαβάζεται ή αλλάζει μέχρι να το επιλέξετε."
+    ],
+    "hi": [
+      "टूलबार पॉपअप से सभी साइटों के लिए एक्सेस का अनुरोध एक बार किया जाता है। यह पॉलिसी तय करती है कि अनुवाद अपने आप शुरू हो या नहीं।",
+      "सभी वेबसाइटों तक एक बार पहुँचने की अनुमति दें। जब तक आप अनुमति नहीं देते, तब तक कुछ भी पढ़ा या बदला नहीं जाता है।"
+    ],
+    "ru": [
+      "При первом использовании всплывающего окна панели инструментов будет запрошен доступ ко всем сайтам. Эта настройка определяет, будет ли перевод запускаться автоматически.",
+      "Разрешить доступ ко всем веб-сайтам один раз. Пока вы не дадите разрешение, данные не будут считываться или изменяться."
+    ],
+    "ar": [
+      "يُطلب الوصول إلى جميع المواقع مرة واحدة من نافذة شريط الأدوات المنبثقة. يحدد هذا الإجراء ما إذا كان الترجمة ستبدأ تلقائيًا.",
+      "السماح بالوصول إلى جميع مواقع الويب لمرة واحدة. لن يتم قراءة أي شيء أو تغييره حتى تسمح بذلك."
+    ],
+    "vi": [
+      "Quyền truy cập tất cả các trang web sẽ được yêu cầu một lần từ cửa sổ popup trên thanh công cụ. Chính sách này quyết định việc dịch có bắt đầu tự động hay không.",
+      "Cho phép truy cập vào tất cả các trang web một lần. Không có gì được đọc hoặc thay đổi cho đến khi bạn cho phép."
+    ],
+    "tr": [
+      "Araç çubuğu açılır penceresinden tüm sitelere erişim bir kez istenir. Bu ayar, çevirinin otomatik olarak başlayıp başlamayacağını belirler.",
+      "Tüm web sitelerine bir kez erişime izin verin. Siz izin verene kadar hiçbir şey okunmaz veya değiştirilmez."
+    ],
+    "bn": [
+      "টুলবার পপআপ থেকে একবার সব সাইটের অ্যাক্সেস চাওয়া হবে। এই পলিসিটি নির্ধারণ করে অনুবাদ স্বয়ংক্রিয়ভাবে শুরু হবে কি না।",
+      "একবার সব ওয়েবসাইটে অ্যাক্সেস দিন। আপনি অনুমতি না দেওয়া পর্যন্ত কিছুই পড়া বা পরিবর্তন করা হয় না।"
+    ],
+    "fa": [
+      "دسترسی به همه سایت‌ها یک‌بار از طریق پاپ‌آپ نوار ابزار درخواست می‌شود. این تنظیم تعیین می‌کند که آیا ترجمه به‌صورت خودکار شروع شود یا خیر.",
+      "اجازه دسترسی به همه وب‌سایت‌ها را برای یک‌بار بدهید. تا زمانی که اجازه ندهید، هیچ چیزی خوانده یا تغییر نمی‌کند."
+    ],
+    "ur": [
+      "ٹول بار پاپ اپ سے تمام سائٹس تک رسائی کے لیے ایک بار اجازت مانگی جائے گی۔ یہ پالیسی طے کرتی ہے کہ ترجمہ خود بخود شروع ہو یا نہیں۔",
+      "تمام ویب سائٹس تک ایک بار رسائی کی اجازت دیں۔ جب تک آپ اجازت نہیں دیتے، کچھ بھی پڑھا یا بدلا نہیں جاتا۔"
+    ],
+    "sw": [
+      "Ufikiaji wa tovuti zote unaombwa mara moja kutoka kwenye menyu ya toolbar. Sera hii huamua ikiwa tafsiri itaanza kiotomatiki.",
+      "Ruhusu ufikiaji wa tovuti zote mara moja. Hakuna kitu kinachosomwa au kubadilishwa hadi utakapokiruhusu."
+    ]
+  }
+}

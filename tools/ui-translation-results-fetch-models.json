@@ -1,0 +1,26 @@
+{
+  "key": "Fetch models",
+  "locales": {
+    "zh-TW": "擷取模型",
+    "zh-CN": "获取模型",
+    "ja": "モデルを取得",
+    "ko": "모델 가져오기",
+    "pt": "Baixar modelos",
+    "es": "Obtener modelos",
+    "it": "Scarica modelli",
+    "de": "Modelle abrufen",
+    "fr": "Récupérer les modèles",
+    "id": "Ambil model",
+    "el": "Λήψη μοντέλων",
+    "th": "ดึงโมเดลมาใช้งาน",
+    "hi": "मॉडल प्राप्त करें",
+    "ru": "Загрузить модели",
+    "ar": "جلب النماذج",
+    "tr": "Modelleri getir",
+    "vi": "Tải mô hình",
+    "bn": "মডেল সংগ্রহ করুন",
+    "fa": "مدل‌ها را دریافت کن",
+    "ur": "ماڈلز حاصل کریں",
+    "sw": "Pakua mifano"
+  }
+}

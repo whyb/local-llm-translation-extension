@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="Local LLM Translator">Local LLM Translator</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main id="app" class="app" aria-live="polite">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">L</span>
+        <div><strong data-i18n="Local LLM Translator">Local LLM Translator</strong><span class="brand-sub" data-i18n="private by design">private by design</span></div>
+      </div>
+      <button id="settings" class="icon-button" title="Open settings" aria-label="Open settings" data-i18n-title="Open settings" data-i18n-aria-label="Open settings">⚙</button>
+    </header>
+    <section class="page-card">
+      <div class="eyebrow" data-i18n="CURRENT PAGE">CURRENT PAGE</div>
+      <h1 id="page-title" data-i18n="Loading…">Loading…</h1>
+      <div id="page-url" class="page-url"></div>
+      <div class="status-row"><span id="state-dot" class="dot"></span><span id="state-label" data-i18n="Checking…">Checking…</span><span id="state-detail" class="muted"></span></div>
+      <div class="progress"><span id="progress-bar"></span></div>
+      <div class="stats"><span><strong id="done">0</strong> <span data-i18n="done">done</span></span><span><strong id="total">0</strong> <span data-i18n="total">total</span></span><span><strong id="hit-rate">—</strong> <span data-i18n="cache">cache</span></span></div>
+    </section>
+    <section id="permission-card" class="notice" hidden>
+      <div><strong data-i18n="Site access required">Site access required</strong><p id="permission-copy" data-i18n="Allow access to all websites once. Nothing is read or changed until you allow it.">Allow access to all websites once. Nothing is read or changed until you allow it.</p></div>
+      <button id="enable-site" class="primary" data-i18n="Allow all sites">Allow all sites</button>
+    </section>
+    <section id="actions" class="actions" hidden>
+      <button id="translate" class="primary large" data-i18n="Translate page">Translate page</button>
+      <button id="stop" disabled data-i18n="Stop">Stop</button>
+      <button id="revert" data-i18n="Revert">Revert</button>
+    </section>
+    <section class="card">
+      <div class="row-head"><div><div class="eyebrow" data-i18n="TRANSLATE MODE">TRANSLATE MODE</div><h2 data-i18n="What should happen on this site?">What should happen on this site?</h2></div><span id="all-sites" class="pill" hidden data-i18n="All sites allowed">All sites allowed</span></div>
+      <div id="mode-control" class="mode-control" role="group" aria-label="Site translation mode" data-i18n-aria-label="Site translation mode">
+        <button data-mode="auto" data-i18n="Automatic">Automatic</button>
+        <button data-mode="ask" data-i18n="Ask me">Ask me</button>
+        <button data-mode="never" data-i18n="Never">Never</button>
+      </div>
+      <p id="mode-hint" class="hint" data-i18n="Automatic only applies to sites you have allowed. Manual mode never sends text until you press Translate.">Automatic only applies to sites you have allowed. Manual mode never sends text until you press Translate.</p>
+      <button id="open-site-settings" class="link-button" data-i18n="Advanced site rules →">Advanced site rules →</button>
+    </section>
+    <section class="mini-grid">
+      <div class="mini-card"><span class="eyebrow" data-i18n="PROVIDER">PROVIDER</span><strong id="provider">—</strong><span id="provider-note" class="muted" data-i18n="Configure a local or cloud endpoint">Configure a local or cloud endpoint</span></div>
+      <div class="mini-card"><span class="eyebrow" data-i18n="PRIVACY">PRIVACY</span><strong data-i18n="Page text only goes to your endpoint">Page text only goes to your endpoint</strong><span class="muted" data-i18n="No telemetry or analytics.">No telemetry or analytics.</span></div>
+    </section>
+    <div id="error" class="error" role="alert" hidden></div>
+    <footer><span id="version">v2.0.0</span><span data-i18n="Alt+Shift+T translate · Alt+Shift+R revert">Alt+Shift+T translate · Alt+Shift+R revert</span></footer>
+  </main>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

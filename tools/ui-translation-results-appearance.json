@@ -1,0 +1,92 @@
+{
+  "keys": [
+    "Show a compact translation action next to selected page text.",
+    "Display live run details while translating."
+  ],
+  "locales": {
+    "zh-CN": [
+      "在选中的页面文本旁显示紧凑型翻译操作。",
+      "翻译时显示实时运行详情。"
+    ],
+    "ja": [
+      "選択したテキストの横に、コンパクトな翻訳アクションを表示します。",
+      "翻訳中の実行詳細をリアルタイムで表示します。"
+    ],
+    "zh-TW": [
+      "在選取的頁面文字旁顯示精簡的翻譯操作。",
+      "翻譯時顯示即時執行詳情。"
+    ],
+    "pt": [
+      "Mostrar uma ação de tradução compacta ao lado do texto selecionado na página.",
+      "Exibir detalhes da execução em tempo real durante a tradução."
+    ],
+    "ko": [
+      "선택한 페이지 텍스트 옆에 간편 번역 아이콘 표시",
+      "번역 중 실시간 실행 세부 정보 표시"
+    ],
+    "es": [
+      "Mostrar un icono de traducción compacto junto al texto seleccionado en la página.",
+      "Mostrar detalles de ejecución en tiempo real durante la traducción."
+    ],
+    "fr": [
+      "Afficher une icône de traduction rapide à côté du texte sélectionné.",
+      "Afficher les détails de l'exécution en direct pendant la traduction."
+    ],
+    "it": [
+      "Mostra un'azione di traduzione rapida accanto al testo selezionato nella pagina.",
+      "Visualizza i dettagli dell'esecuzione in tempo reale durante la traduzione."
+    ],
+    "de": [
+      "Kompakte Übersetzungsaktion neben dem markierten Text anzeigen.",
+      "Details zur Live-Ausführung während der Übersetzung anzeigen."
+    ],
+    "th": [
+      "แสดงปุ่มแปลภาษาแบบย่อข้างข้อความที่เลือกบนหน้าเว็บ",
+      "แสดงรายละเอียดการทำงานขณะกำลังแปลแบบเรียลไทม์"
+    ],
+    "id": [
+      "Tampilkan tindakan terjemahan ringkas di samping teks halaman yang dipilih.",
+      "Tampilkan detail proses saat sedang menerjemahkan."
+    ],
+    "el": [
+      "Εμφάνιση σύντομης ενέργειας μετάφρασης δίπλα στο επιλεγμένο κείμενο της σελίδας.",
+      "Εμφάνιση λεπτομερειών εκτέλεσης σε πραγματικό χρόνο κατά τη μετάφραση."
+    ],
+    "hi": [
+      "चुने हुए पेज टेक्स्ट के पास एक संक्षिप्त अनुवाद विकल्प दिखाएं।",
+      "अनुवाद करते समय लाइव रन विवरण प्रदर्शित करें।"
+    ],
+    "ru": [
+      "Показывать компактную кнопку перевода рядом с выделенным текстом страницы.",
+      "Отображать детали процесса во время перевода."
+    ],
+    "ar": [
+      "إظهار إجراء ترجمة مختصر بجانب النص المحدد في الصفحة.",
+      "عرض تفاصيل التشغيل المباشر أثناء الترجمة."
+    ],
+    "vi": [
+      "Hiển thị biểu tượng dịch nhanh bên cạnh văn bản đã chọn.",
+      "Hiển thị chi tiết quá trình chạy trực tiếp khi đang dịch."
+    ],
+    "tr": [
+      "Seçilen sayfa metninin yanında kompakt bir çeviri işlemi gösterin.",
+      "Çeviri yapılırken canlı çalışma ayrıntılarını görüntüleyin."
+    ],
+    "bn": [
+      "নির্বাচিত টেক্সটের পাশে একটি ছোট ট্রান্সলেশন বাটন দেখান।",
+      "ট্রান্সলেট করার সময় লাইভ রান ডিটেইলস প্রদর্শন করুন।"
+    ],
+    "ur": [
+      "منتخب کردہ پیج ٹیکسٹ کے ساتھ ایک مختصر ترجمہشن ایکشن دکھائیں۔",
+      "ترجمہ کرتے وقت لائیو رن کی تفصیلات دکھائیں۔"
+    ],
+    "fa": [
+      "نمایش یک آیکون ترجمه فشرده در کنار متن انتخاب‌شده در صفحه.",
+      "نمایش جزئیات اجرای زنده هنگام ترجمه کردن."
+    ],
+    "sw": [
+      "Onyesha kitendo kidogo cha tafsiri kando ya maandishi yaliyochaguliwa kwenye ukurasa.",
+      "Onyesha maelezo ya utendaji wa moja kwa moja wakati unatafsiri."
+    ]
+  }
+}

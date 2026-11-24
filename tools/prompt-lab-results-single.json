@@ -1,0 +1,650 @@
+{
+  "base_url": "http://127.0.0.1:9931/v1",
+  "model": "gemma4_26b_a4b",
+  "temperature": 0.7,
+  "runs": 10,
+  "protocols": [
+    "single-current",
+    "single-marked",
+    "single-simple"
+  ],
+  "cases": [
+    "mixed-technical",
+    "product-page",
+    "selection"
+  ],
+  "summary": [
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "runs": 10,
+      "success": 10,
+      "rate": 1.0,
+      "avg_s": 0.634,
+      "issues": []
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "runs": 10,
+      "success": 10,
+      "rate": 1.0,
+      "avg_s": 0.92,
+      "issues": []
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "runs": 10,
+      "success": 10,
+      "rate": 1.0,
+      "avg_s": 0.616,
+      "issues": []
+    }
+  ],
+  "attempts": [
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 1,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.725,
+      "prompt_tokens": 172,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 2,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.704,
+      "prompt_tokens": 172,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落内容为：\"不要翻译 {name} 或 `npm run check`。\"\n详情请访问 https://example.com。",
+      "parsed": [
+        "<strong>选定</strong>的段落内容为：\"不要翻译 {name} 或 `npm run check`。\"\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 3,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.587,
+      "prompt_tokens": 172,
+      "completion_tokens": 34,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>段落的内容是：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>段落的内容是：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 4,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.567,
+      "prompt_tokens": 172,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>所选</strong>段落内容为：\"不要翻译 {name} 或 `npm run check`。\"\n请访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>所选</strong>段落内容为：\"不要翻译 {name} 或 `npm run check`。\"\n请访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 5,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.539,
+      "prompt_tokens": 172,
+      "completion_tokens": 34,
+      "finish_reason": "stop",
+      "output": "<strong>所选</strong>段落内容为：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>所选</strong>段落内容为：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 6,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.637,
+      "prompt_tokens": 172,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>段落写道：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>段落写道：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 7,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.65,
+      "prompt_tokens": 172,
+      "completion_tokens": 34,
+      "finish_reason": "stop",
+      "output": "<strong>选中</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选中</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 8,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.691,
+      "prompt_tokens": 172,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。",
+      "parsed": [
+        "<strong>选定</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 9,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.57,
+      "prompt_tokens": 172,
+      "completion_tokens": 34,
+      "finish_reason": "stop",
+      "output": "<strong>所选</strong>段落的内容是：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。",
+      "parsed": [
+        "<strong>所选</strong>段落的内容是：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-current",
+      "case": "selection",
+      "run": 10,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.669,
+      "prompt_tokens": 172,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落写着：\"不要翻译 {name} 或 `npm run check`。\"\n访问 https://example.com 查看详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落写着：\"不要翻译 {name} 或 `npm run check`。\"\n访问 https://example.com 查看详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 1,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.594,
+      "prompt_tokens": 127,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 2,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.603,
+      "prompt_tokens": 127,
+      "completion_tokens": 34,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 3,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.638,
+      "prompt_tokens": 127,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 查看详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 查看详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 4,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.559,
+      "prompt_tokens": 127,
+      "completion_tokens": 34,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 5,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.599,
+      "prompt_tokens": 127,
+      "completion_tokens": 36,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落写道：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落写道：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 6,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.636,
+      "prompt_tokens": 127,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 7,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.57,
+      "prompt_tokens": 127,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落写着：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落写着：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 8,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.629,
+      "prompt_tokens": 127,
+      "completion_tokens": 36,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落写道：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落写道：“不要翻译 {name} 或 `npm run check`。”\n请访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 9,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.722,
+      "prompt_tokens": 127,
+      "completion_tokens": 36,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落内容为：“请勿翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。",
+      "parsed": [
+        "<strong>选定</strong>的段落内容为：“请勿翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-simple",
+      "case": "selection",
+      "run": 10,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.61,
+      "prompt_tokens": 127,
+      "completion_tokens": 35,
+      "finish_reason": "stop",
+      "output": "<strong>选定</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。",
+      "parsed": [
+        "<strong>选定</strong>的段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 1,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.938,
+      "prompt_tokens": 166,
+      "completion_tokens": 68,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>选定</strong>的段落内容为：“请勿翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>选定</strong>的段落内容为：“请勿翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 2,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.896,
+      "prompt_tokens": 166,
+      "completion_tokens": 66,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>所选</strong>段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>所选</strong>段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 3,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.882,
+      "prompt_tokens": 166,
+      "completion_tokens": 66,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>所选</strong>段落内容为：\"不要翻译 {name} 或 `npm run check`。\"\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>所选</strong>段落内容为：\"不要翻译 {name} 或 `npm run check`。\"\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 4,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.862,
+      "prompt_tokens": 166,
+      "completion_tokens": 66,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>所选</strong>段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>所选</strong>段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 5,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.954,
+      "prompt_tokens": 166,
+      "completion_tokens": 67,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>所选</strong>段落的内容是：\"请勿翻译 {name} 或 `npm run check`。\"\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>所选</strong>段落的内容是：\"请勿翻译 {name} 或 `npm run check`。\"\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 6,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.918,
+      "prompt_tokens": 166,
+      "completion_tokens": 66,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 7,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.948,
+      "prompt_tokens": 166,
+      "completion_tokens": 66,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>选定</strong>的段落是：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 8,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 1.023,
+      "prompt_tokens": 166,
+      "completion_tokens": 66,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>所选</strong>段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>所选</strong>段落内容为：“不要翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 9,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.939,
+      "prompt_tokens": 166,
+      "completion_tokens": 66,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>所选</strong>段落显示：“请勿翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>所选</strong>段落显示：“请勿翻译 {name} 或 `npm run check`。”\n详情请访问 https://example.com。"
+      ],
+      "error": null
+    },
+    {
+      "mode": "single",
+      "protocol": "single-marked",
+      "case": "selection",
+      "run": 10,
+      "ok": true,
+      "parsed_count": 1,
+      "expected_count": 1,
+      "issue": "",
+      "clean_output": true,
+      "duration_s": 0.844,
+      "prompt_tokens": 166,
+      "completion_tokens": 66,
+      "finish_reason": "stop",
+      "output": "⟦LBT:6F0379E5:START⟧\n<strong>选定</strong>的段落显示：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。\n⟦LBT:6F0379E5:END⟧",
+      "parsed": [
+        "<strong>选定</strong>的段落显示：“不要翻译 {name} 或 `npm run check`。”\n访问 https://example.com 获取详情。"
+      ],
+      "error": null
+    }
+  ]
+}

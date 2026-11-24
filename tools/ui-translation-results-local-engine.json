@@ -1,0 +1,26 @@
+{
+  "key": "Prepare local engine",
+  "locales": {
+    "zh-CN": "准备本地引擎",
+    "zh-TW": "準備本地引擎",
+    "ja": "ローカルエンジンを準備中",
+    "pt": "Preparar motor local",
+    "ko": "로컬 엔진 준비 중",
+    "es": "Preparar motor local",
+    "fr": "Préparation du moteur local",
+    "de": "Lokale Engine vorbereiten",
+    "it": "Preparazione motore locale",
+    "id": "Siapkan mesin lokal",
+    "th": "เตรียมเอนจินในเครื่องพร้อมใช้งาน",
+    "el": "Ετοιμασία τοπικής μηχανής",
+    "hi": "लोकल इंजन तैयार करें",
+    "ru": "Подготовка локального движка",
+    "ar": "تجهيز المحرك المحلي",
+    "tr": "Yerel motor hazırlanıyor",
+    "bn": "লোকাল ইঞ্জিন প্রস্তুত করুন",
+    "vi": "Chuẩn bị công cụ cục bộ",
+    "fa": "آماده‌سازی موتور محلی",
+    "sw": "Andaa injini ya ndani",
+    "ur": "مقامی انجن تیار کریں"
+  }
+}

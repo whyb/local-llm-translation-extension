@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="Local LLM Translator — Settings">Local LLM Translator — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">L</span><div><strong data-i18n="Local LLM Translator">Local LLM Translator</strong><span data-i18n="Settings & diagnostics">Settings &amp; diagnostics</span></div></div>
+      <nav id="nav" aria-label="Settings sections" data-i18n-aria-label="Settings sections">
+        <button data-section="providers" data-i18n="Providers">Providers</button>
+        <button data-section="translation" data-i18n="Translation">Translation</button>
+        <button data-section="cache" data-i18n="Cache">Cache</button>
+        <button data-section="speed" data-i18n="Speed">Speed</button>
+        <button data-section="appearance" data-i18n="Appearance">Appearance</button>
+        <button data-section="sites" data-i18n="Sites">Sites</button>
+        <button data-section="exclusions" data-i18n="Exclusions">Exclusions</button>
+        <button data-section="robustness" data-i18n="Robustness">Robustness</button>
+        <button data-section="diagnostics" data-i18n="Diagnostics">Diagnostics</button>
+      </nav>
+      <div class="sidebar-save">
+        <span id="save-status" class="save-status" role="status" data-i18n="Saved">Saved</span>
+        <button id="save" class="primary" data-i18n="Save changes">Save changes</button>
+      </div>
+      <div class="sidebar-footer"><span id="version"></span><a href="https://support.mozilla.org" target="_blank" rel="noreferrer" data-i18n="Privacy-first translation">Privacy-first translation</a></div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><div id="eyebrow" class="eyebrow" data-i18n="PROVIDERS">PROVIDERS</div><h1 id="title" data-i18n="Providers">Providers</h1><p id="subtitle" class="subtitle" data-i18n="Connect one or more local or cloud model endpoints.">Connect one or more local or cloud model endpoints.</p></div>
+      </header>
+      <section id="content" class="content" aria-live="polite"></section>
+    </main>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
