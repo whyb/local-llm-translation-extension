@@ -16,7 +16,7 @@ a { color: var(--accent); }
 .app-shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 100vh; }
 .sidebar { position: sticky; top: 0; height: 100vh; padding: 24px 18px; border-inline-end: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 86%, transparent); display: flex; flex-direction: column; gap: 24px; backdrop-filter: blur(20px); overflow-y: auto; }
 .brand { display: flex; align-items: center; gap: 12px; }
-.brand-mark { flex: none; width: 44px; height: 44px; border: 1px solid rgba(255,255,255,.48); border-radius: 14px; display: flex; align-items: center; justify-content: center; padding: 0; color: #fff; background: linear-gradient(145deg, #2563eb, #7c3aed); box-shadow: 0 14px 36px rgba(37,99,235,.35); font-size: 15px; font-weight: 800; line-height: 1; text-align: center; }
+.brand-mark { flex: none; width: 44px; height: 44px; display: block; border-radius: 14px; object-fit: cover; box-shadow: 0 14px 36px rgba(37,99,235,.35); }
 .brand strong { display: block; font-size: 13px; line-height: 1.25; }
 .brand > div > span { display: block; color: var(--muted); font-size: 11px; }
 nav { display: grid; gap: 4px; }

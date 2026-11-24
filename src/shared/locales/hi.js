@@ -32,7 +32,7 @@ export default Object.freeze({
   "Connect local or cloud model endpoints and tune routing.": "स्थानीय या क्लाउड मॉडल एंडपॉइंट कनेक्ट करें और रूटिंग ट्यून करें।",
   "Control target language, prompt, glossary and layout guards.": "लक्ष्य भाषा, संकेत, शब्दावली और लेआउट गार्ड को नियंत्रित करें।",
   "Keep repeated navigation fast without making page text ubiquitous.": "पेज टेक्स्ट को सर्वव्यापी बनाए बिना बार-बार नेविगेशन तेज़ रखें।",
-  "Choose local or LLM translation and govern speculative work.": "स्थानीय या एलएलएम अनुवाद चुनें और सट्टा कार्य को नियंत्रित करें।",
+  "Control LLM translation speed and speculative work.": "LLM अनुवाद की गति और पूर्वानुमानित कार्य नियंत्रित करें।",
   "Make the in-page controls useful without taking over the page.": "पेज पर कब्ज़ा किए बिना इन-पेज नियंत्रणों को उपयोगी बनाएं।",
   "Grant access deliberately. Permission alone never turns a site on.": "जानबूझकर पहुंच प्रदान करें. अकेले अनुमति से कोई साइट कभी चालू नहीं होती।",
   "Decide what must never reach the model.": "तय करें कि मॉडल तक क्या कभी नहीं पहुंचना चाहिए।",

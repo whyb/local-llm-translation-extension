@@ -32,7 +32,7 @@ export default Object.freeze({
   'Connect local or cloud model endpoints and tune routing.': 'Yerel veya bulut model uç noktalarını bağlayın ve yönlendirmeyi ayarlayın.',
   'Control target language, prompt, glossary and layout guards.': 'Hedef dili, istemi, sözlüğü ve düzen korumalarını kontrol edin.',
   'Keep repeated navigation fast without making page text ubiquitous.': 'Sayfa metnini her yere yaymadan tekrarlanan gezinmeyi hızlı tutun.',
-  'Choose local or LLM translation and govern speculative work.': 'Yerel veya LLM çevirisini seçin ve öngörülü çalışmayı yönetin.',
+  "Control LLM translation speed and speculative work.": "LLM çeviri hızını ve öngörülü çalışmayı kontrol edin.",
   'Make the in-page controls useful without taking over the page.': 'Sayfayı ele geçirmeden sayfa içi kontrolleri kullanışlı hale getirin.',
   'Grant access deliberately. Permission alone never turns a site on.': 'Erişimi bilinçli olarak verin. Tek başına izin bir siteyi asla açmaz.',
   'Decide what must never reach the model.': 'Modele asla ulaşmaması gerekenleri belirleyin.',

@@ -32,7 +32,7 @@ export default Object.freeze({
   'Connect local or cloud model endpoints and tune routing.': 'Συνδέστε τοπικά ή cloud τελικά σημεία μοντέλων και ρυθμίστε τη δρομολόγηση.',
   'Control target language, prompt, glossary and layout guards.': 'Ελέγξτε γλώσσα προορισμού, prompt, γλωσσάρι και προστασίες διάταξης.',
   'Keep repeated navigation fast without making page text ubiquitous.': 'Διατηρήστε γρήγορη την επαναλαμβανόμενη περιήγηση χωρίς να κάνετε πανταχού παρόν το κείμενο της σελίδας.',
-  'Choose local or LLM translation and govern speculative work.': 'Επιλέξτε τοπική ή LLM μετάφραση και ελέγξτε την προγνωστική εργασία.',
+  "Control LLM translation speed and speculative work.": "Έλεγχος ταχύτητας μετάφρασης LLM και προληπτικής εργασίας.",
   'Make the in-page controls useful without taking over the page.': 'Κάντε τα στοιχεία ελέγχου στη σελίδα χρήσιμα χωρίς να κυριαρχούν στη σελίδα.',
   'Grant access deliberately. Permission alone never turns a site on.': 'Παραχωρήστε πρόσβαση συνειδητά. Μόνο η άδεια δεν ενεργοποιεί έναν ιστότοπο.',
   'Decide what must never reach the model.': 'Αποφασίστε τι δεν πρέπει ποτέ να φτάσει στο μοντέλο.',

@@ -6,6 +6,35 @@
   const api = contentIsFirefox
     ? globalThis.browser ?? globalThis.chrome
     : globalThis.chrome ?? globalThis.browser;
+
+  function callChromeApi(method, context, ...args) {
+    if (contentIsFirefox) return method.apply(context, args);
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error, value) => {
+        if (settled) return;
+        settled = true;
+        if (error) reject(error instanceof Error ? error : new Error(String(error)));
+        else resolve(value);
+      };
+      const callback = (value) => {
+        let error = null;
+        try { error = api.runtime?.lastError ?? null; } catch { /* noop */ }
+        finish(error, value);
+      };
+      let returned;
+      try {
+        returned = method.apply(context, [...args, callback]);
+      } catch (error) {
+        finish(error);
+        return;
+      }
+      if (returned && typeof returned.then === 'function') {
+        returned.then((value) => finish(null, value), (error) => finish(error));
+      }
+    });
+  }
+
   const SETTINGS_KEY = 'lbt.settings';
   const SKIP_TAGS = new Set(['script', 'style', 'noscript', 'template', 'svg', 'canvas', 'iframe', 'object', 'embed', 'select', 'option', 'textarea']);
   const SKIP_ANCESTOR_TAGS = new Set(['script', 'style', 'noscript', 'template', 'svg', 'canvas', 'select', 'textarea']);
@@ -23,7 +52,6 @@
       pinCustomPromptToPrefix: false, layoutGuards: { whitespace: true, bidi: true, clippedExpansion: true, rubyWbr: true, maxExpansionRatio: 1.5 }
     },
     speed: {
-      engineMode: 'llm-only',
       prefetch: { hoverPrefetch: false, idleFill: true, nextNavPrediction: false },
       runaway: { pageUnitCeiling: 500, mutationStormDetection: true, mutationStormWindowMs: 3000, mutationStormMaxMutations: 300 },
       contentMemory: { maxRetainedOriginals: 5000 }
@@ -86,7 +114,7 @@
 
   async function getSettings() {
     try {
-      const values = await api.storage.local.get(SETTINGS_KEY);
+      const values = await callChromeApi(api.storage.local.get, api.storage.local, SETTINGS_KEY);
       state.settings = normalizeContentSettings(values?.[SETTINGS_KEY]);
     } catch {
       state.settings = clone(DEFAULT_CONTENT_SETTINGS);
@@ -108,7 +136,7 @@
     let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        return await api.runtime.sendMessage(message);
+        return await callChromeApi(api.runtime.sendMessage, api.runtime, message);
       } catch (error) {
         lastError = error;
         const text = error instanceof Error ? error.message : String(error);

@@ -33,7 +33,7 @@ export default Object.freeze({
   'Connect one or more local or cloud model endpoints.': 'Connectez un ou plusieurs points de terminaison de modèle locaux ou cloud.',
   'Control target language, prompt, glossary and layout guards.': 'Contrôlez la langue cible, le prompt, le glossaire et les protections de mise en page.',
   'Keep repeated navigation fast without making page text ubiquitous.': 'Accélérez les navigations répétées sans multiplier les textes de page.',
-  'Choose local or LLM translation and govern speculative work.': 'Choisissez la traduction locale ou par LLM et encadrez les traitements anticipés.',
+  "Control LLM translation speed and speculative work.": "Contrôlez la vitesse de traduction LLM et le travail spéculatif.",
   'Make the in-page controls useful without taking over the page.': 'Rendez les contrôles intégrés utiles sans envahir la page.',
   'Grant access deliberately. Permission alone never turns a site on.': 'Accordez l’accès avec discernement. Une autorisation n’active jamais un site à elle seule.',
   'Decide what must never reach the model.': 'Déterminez ce qui ne doit jamais être envoyé au modèle.',

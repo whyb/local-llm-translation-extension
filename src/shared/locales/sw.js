@@ -32,7 +32,7 @@ export default Object.freeze({
   'Connect local or cloud model endpoints and tune routing.': 'Unganisha vituo vya modeli vya ndani au vya wingu na urekebishe uelekezaji.',
   'Control target language, prompt, glossary and layout guards.': 'Dhibiti lugha lengwa, maagizo, orodha ya istilahi na walinzi wa mpangilio.',
   'Keep repeated navigation fast without making page text ubiquitous.': 'Weka urambazaji wa mara kwa mara kuwa wa haraka bila kufanya maandishi ya ukurasa kuwa kila mahali.',
-  'Choose local or LLM translation and govern speculative work.': 'Chagua tafsiri ya ndani au ya LLM na udhibiti kazi za kukisia.',
+  "Control LLM translation speed and speculative work.": "Dhibiti kasi ya tafsiri ya LLM na kazi ya kutarajia.",
   'Make the in-page controls useful without taking over the page.': 'Fanya vidhibiti vya ndani ya ukurasa kuwa muhimu bila kutwaa ukurasa.',
   'Grant access deliberately. Permission alone never turns a site on.': 'Toa ufikiaji kwa makusudi. Ruhusa pekee haiwashi tovuti kamwe.',
   'Decide what must never reach the model.': 'Amua ni nini kisichopaswa kufika kwa modeli kamwe.',

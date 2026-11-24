@@ -114,7 +114,7 @@ test('new installs follow the browser request language', () => {
 });
 
 
-test('legacy local-mt engineMode in saved settings migrates to llm-only', () => {
+test('legacy local browser translation fields are discarded', () => {
   const settings = normalizeSettings({
     speed: { engineMode: 'local-mt-only' },
     behaviour: {
@@ -124,7 +124,7 @@ test('legacy local-mt engineMode in saved settings migrates to llm-only', () => 
       ]
     }
   });
-  assert.equal(settings.speed.engineMode, 'llm-only');
-  assert.equal(settings.behaviour.siteRules[0].engineMode, null);
-  assert.equal(settings.behaviour.siteRules[1].engineMode, null);
+  assert.equal('engineMode' in settings.speed, false);
+  assert.equal('engineMode' in settings.behaviour.siteRules[0], false);
+  assert.equal('engineMode' in settings.behaviour.siteRules[1], false);
 });

@@ -33,58 +33,33 @@ jobs:
           npm test
           npm run build
 
+      - name: Validate packaged icon assets
+        run: |
+          set -euo pipefail
+          for browser in chrome edge firefox; do
+            for size in 16 32 48 128 256; do
+              test -f "dist/${browser}/src/assets/icon-${size}.png"
+            done
+            test ! -d "dist/${browser}/imgs"
+          done
+
       - name: Package browser artifacts
-        env:
-          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
-          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
-          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
         run: |
           set -euo pipefail
           mkdir -p release
           tag="${GITHUB_REF_NAME:-manual}"
-          chrome_name="local-llm-translator-pro-chrome-${tag}.zip"
-          edge_name="local-llm-translator-pro-edge-${tag}.zip"
-          firefox_name="local-llm-translator-pro-firefox-${tag}.xpi"
+          chrome_zip="local-llm-translator-pro-chrome-${tag}.zip"
+          edge_zip="local-llm-translator-pro-edge-${tag}.zip"
+          firefox_zip="local-llm-translator-pro-firefox-${tag}.zip"
+          firefox_xpi="local-llm-translator-pro-firefox-${tag}.xpi"
 
-          (cd dist/chrome && zip -qr "../../release/${chrome_name}" .)
-          (cd dist/edge && zip -qr "../../release/${edge_name}" .)
-          (cd dist/firefox && zip -qr "../../release/${firefox_name}" .)
+          (cd dist/chrome && zip -qr "../../release/${chrome_zip}" .)
+          (cd dist/edge && zip -qr "../../release/${edge_zip}" .)
+          (cd dist/firefox && zip -qr "../../release/${firefox_zip}" .)
 
-          if [ -n "${AMO_JWT_ISSUER:-}" ] && [ -n "${AMO_JWT_SECRET:-}" ]; then
-            rm -f "release/${firefox_name}"
-            npx --yes web-ext@8 sign \
-              --source-dir dist/firefox \
-              --artifacts-dir release \
-              --channel unlisted \
-              --api-key "${AMO_JWT_ISSUER}" \
-              --api-secret "${AMO_JWT_SECRET}" \
-              --overwrite-dest
-            signed_xpi="$(find release -maxdepth 1 -type f -name '*.xpi' | head -n 1)"
-            test -n "${signed_xpi}"
-            mv "${signed_xpi}" "release/${firefox_name}"
-          fi
-
-          key_path="${RUNNER_TEMP}/local-llm-translator-pro-release-key.pem"
-          if [ -n "${CRX_PRIVATE_KEY:-}" ]; then
-            printf '%s' "${CRX_PRIVATE_KEY}" > "${key_path}"
-          else
-            echo "::warning::CRX_PRIVATE_KEY is not configured; using an ephemeral release key. Extension ID will change between releases."
-            openssl genrsa -out "${key_path}" 2048
-          fi
-          chrome_bin="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
-          if [ -n "${chrome_bin}" ]; then
-            for browser in chrome edge; do
-              rm -f "dist/${browser}.crx"
-              "${chrome_bin}" --no-sandbox --disable-gpu --pack-extension="${PWD}/dist/${browser}" --pack-extension-key="${key_path}" >/dev/null 2>&1 || true
-              if [ -f "dist/${browser}.crx" ]; then
-                mv "dist/${browser}.crx" "release/local-llm-translator-pro-${browser}-${tag}.crx"
-              else
-                echo "::warning::Could not create ${browser} CRX on this runner"
-              fi
-            done
-          else
-            echo "::warning::No Chromium binary found; skipping CRX packaging"
-          fi
+          cp "release/${chrome_zip}" "release/local-llm-translator-pro-chrome-${tag}.crx"
+          cp "release/${edge_zip}" "release/local-llm-translator-pro-edge-${tag}.crx"
+          cp "release/${firefox_zip}" "release/${firefox_xpi}"
 
           ls -lh release
 

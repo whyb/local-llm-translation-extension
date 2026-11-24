@@ -32,8 +32,9 @@
     .lbt-fab-shell[data-active="true"] { box-shadow: 0 16px 42px rgba(37,99,235,.45); }
     .lbt-fab-shell[data-complete="true"] { background: conic-gradient(#22c55e 0 100%); box-shadow: 0 14px 36px rgba(34,197,94,.34); }
     .lbt-fab-shell[data-indeterminate="true"] { animation: lbt-fab-ring-spin 1.35s linear infinite; background: conic-gradient(from -90deg, rgba(255,255,255,.14), #67e8f9 34%, rgba(255,255,255,.14) 70%, rgba(255,255,255,.14)); }
-    .lbt-fab { width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255,255,255,.48); background: linear-gradient(145deg,#2563eb,#7c3aed); color: white; cursor: pointer; font-weight: 750; font-size: 15px; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; }
-    .lbt-fab.is-progress { font-size: 10.5px; letter-spacing: -.03em; }
+    .lbt-fab { position: relative; width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255,255,255,.48); background: #fff; cursor: pointer; display: block; overflow: hidden; padding: 0; }
+    .lbt-fab-logo { width: 100%; height: 100%; display: block; object-fit: cover; }
+    .lbt-fab-badge { position: absolute; right: 2px; bottom: 2px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: rgba(17,24,39,.92); color: #fff; font: 750 9px/18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-align: center; box-sizing: border-box; box-shadow: 0 2px 8px rgba(0,0,0,.28); }
     .lbt-fab:hover { transform: translateY(-1px); }
     @keyframes lbt-fab-ring-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .lbt-fab-shell[data-indeterminate="true"] { animation: none; } }
@@ -118,7 +119,13 @@
       this.fabShell.dataset.active = 'false';
       this.fabShell.dataset.complete = 'false';
       this.fabShell.dataset.indeterminate = 'false';
-      this.fab = el('button', 'lbt-fab', '译');
+      this.fab = el('button', 'lbt-fab');
+      const fabLogo = el('img', 'lbt-fab-logo');
+      fabLogo.src = LBT.api.runtime.getURL('src/assets/icon-128.png');
+      fabLogo.alt = '';
+      this.fabBadge = el('span', 'lbt-fab-badge');
+      this.fabBadge.hidden = true;
+      this.fab.append(fabLogo, this.fabBadge);
       this.fab.title = 'Local LLM Translator Pro';
       this.fab.addEventListener('click', () => {
         this.panel.hidden = !this.panel.hidden;
@@ -210,7 +217,8 @@
       this.fabShell.dataset.indeterminate = String(this.translating && this.progress.total === 0);
       this.fabShell.dataset.complete = String(complete && !this.translating);
       this.fab.classList.remove('is-progress');
-      this.fab.textContent = this.translating ? '…' : complete ? '✓' : '译';
+      this.fabBadge.textContent = this.translating ? '…' : complete ? '✓' : '';
+      this.fabBadge.hidden = !this.fabBadge.textContent;
       this.fab.title = this.translating ? 'Local LLM Translator Pro — translating' : complete ? 'Local LLM Translator Pro — complete' : 'Local LLM Translator Pro';
       this.fab.setAttribute('aria-label', this.fab.title);
       if (this.translating) this.fabShell.style.setProperty('--lbt-fab-progress', '0%');
@@ -229,13 +237,15 @@
       }
       if (this.fab && this.progress.total > 0) {
         const complete = this.progress.done >= this.progress.total;
-        this.fab.textContent = complete ? '✓' : `${percent}%`;
+        this.fabBadge.textContent = complete ? '✓' : `${percent}%`;
+        this.fabBadge.hidden = false;
         this.fab.classList.toggle('is-progress', !complete);
         const label = `Local LLM Translator Pro — ${this.progress.done}/${this.progress.total} (${percent}%)`;
         this.fab.title = label;
         this.fab.setAttribute('aria-label', label);
       } else if (this.fab && this.translating) {
-        this.fab.textContent = '…';
+        this.fabBadge.textContent = '…';
+        this.fabBadge.hidden = false;
         this.fab.classList.remove('is-progress');
       }
       if (this.progress.total > 0) this.setStatus(`${this.progress.done} / ${this.progress.total} segments`);

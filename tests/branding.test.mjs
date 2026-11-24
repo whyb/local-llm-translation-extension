@@ -17,11 +17,21 @@ test('product branding is applied consistently', async () => {
   assert.match(popup, /Local LLM Translator Pro/);
   assert.match(options, /Local LLM Translator Pro/);
   assert.match(content, /Local LLM Translator Pro/);
+  assert.match(chromeManifest, /"version": "2\.0\.1"/);
+  assert.match(firefoxManifest, /Privacy-first browser translation extension powered by local LLMs — your text never leaves your device\./);
+  for (const size of [16, 32, 48, 128, 256]) {
+    assert.match(chromeManifest, new RegExp(`"${size}": "src/assets/icon-${size}\\.png"`));
+  }
+  assert.doesNotMatch(chromeManifest, /imgs\//);
+  assert.match(chromeManifest, /"web_accessible_resources": \[\s*\{\s*"resources": \[\s*"src\/assets\/icon-\*\.png"/s);
+  assert.match(popup, /src="\.\.\/\.\.\/assets\/icon-48\.png"/);
+  assert.match(options, /src="\.\.\/\.\.\/assets\/icon-48\.png"/);
 });
 
 test('settings brand mark sizing does not override the logo itself', async () => {
   const css = await read('../src/ui/options/options.css');
-  assert.match(css, /\.brand-mark\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /\.brand-mark\s*\{[^}]*display:\s*block/s);
+  assert.match(css, /\.brand-mark\s*\{[^}]*object-fit:\s*cover/s);
   assert.match(css, /\.brand > div > span\s*\{/);
   assert.doesNotMatch(css, /\.brand span\s*\{/);
 });
@@ -33,6 +43,9 @@ test('floating button exposes a circular progress track and percentage state', a
   assert.match(source, /conic-gradient/);
   assert.match(source, /is-progress/);
   assert.match(source, /setProgress\(0, 0\)/);
+  assert.match(source, /getURL\('src\/assets\/icon-128\.png'\)/);
+  assert.match(source, /lbt-fab-logo/);
+  assert.match(source, /lbt-fab-badge/);
 });
 
 test('hover reveal mode uses a tooltip without changing page layout', async () => {
@@ -69,6 +82,9 @@ test('README exposes collapsed browser debugging and release workflow packages a
   assert.match(workflow, /dist\/chrome/);
   assert.match(workflow, /dist\/edge/);
   assert.match(workflow, /dist\/firefox/);
+  assert.doesNotMatch(workflow, /CRX_PRIVATE_KEY|AMO_JWT_ISSUER|web-ext@8 sign|--pack-extension/);
+  assert.match(workflow, /cp .*\.crx/);
+  assert.match(workflow, /firefox_xpi=.*\.xpi/);
 });
 
 

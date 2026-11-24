@@ -32,7 +32,7 @@ export default Object.freeze({
   'Connect local or cloud model endpoints and tune routing.': '連接本機或雲端模型端點，並調整路由方式。',
   'Control target language, prompt, glossary and layout guards.': '控制目標語言、提示詞、詞彙表與版面保護。',
   'Keep repeated navigation fast without making page text ubiquitous.': '讓重複瀏覽保持快速，同時避免頁面文字無所不在。',
-  'Choose local or LLM translation and govern speculative work.': '選擇本機或 LLM 翻譯，並管理預先執行的工作。',
+  "Control LLM translation speed and speculative work.": "控制 LLM 翻譯速度與預先執行工作。",
   'Make the in-page controls useful without taking over the page.': '讓頁內控制項實用，同時不干擾頁面內容。',
   'Grant access deliberately. Permission alone never turns a site on.': '審慎授予存取權。只有權限並不會自動啟用網站翻譯。',
   'Decide what must never reach the model.': '決定哪些內容絕對不得傳送給模型。',

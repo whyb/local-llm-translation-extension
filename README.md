@@ -1,6 +1,6 @@
 # Local LLM Translator Pro
 
-An original, framework-free browser extension for Firefox, Chrome and Edge. It translates web pages and selections with a user-configured local or cloud model endpoint, without analytics or a telemetry endpoint.
+Privacy-first browser translation extension powered by local LLMs — your text never leaves your device.
 
 ## What it does
 
@@ -13,7 +13,6 @@ An original, framework-free browser extension for Firefox, Chrome and Edge. It t
 - One-time all-sites access with per-site translation policies
 - SPA, bfcache, iframe and MutationObserver support
 - Optional hover/next-navigation prefetch with budget and URL guards
-- Optional browser local translation when the platform exposes one
 - Diagnostics, redacted bug reports, provider probing, settings/TM import export and hard reset
 
 ## Privacy model
@@ -37,7 +36,7 @@ npm run build
 - `dist/chrome/` — load unpacked in Chrome or Edge
 - `dist/firefox/` — load temporarily in Firefox via `about:debugging#/runtime/this-firefox`
 
-To load the root directly in Chrome/Edge, use the root `manifest.json`. For Firefox, use the built `dist/firefox/manifest.json` because it contains `trialML` and Firefox-specific metadata.
+To load the root directly in Chrome/Edge, use the root `manifest.json`. For Firefox, use the built `dist/firefox/manifest.json` because it contains Firefox-specific metadata.
 
 ## Browser debugging
 
@@ -93,37 +92,33 @@ Notes:
 
 - Temporary add-ons disappear when Firefox restarts.
 - Unsigned `.xpi` files normally install only in Firefox Developer Edition, Nightly or builds where signature enforcement is disabled.
-- Stable Firefox requires a signed add-on for permanent installation.
-- The release workflow can sign the Firefox package when `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` repository secrets are configured.
+- Stable Firefox requires a Mozilla-signed add-on for permanent installation. The CI archive is unsigned.
 </details>
 
 ## Release packaging
 
-Push a tag matching `v*.*.*`, for example `v2.0.0`. The GitHub Actions workflow validates that the tag version matches `package.json`, runs all checks, builds Chrome, Edge and Firefox packages, and creates a GitHub **pre-release**.
+Push a tag matching `v*.*.*`, for example `v2.0.1`. The GitHub Actions workflow validates that the tag version matches `package.json`, runs all checks, builds Chrome, Edge and Firefox packages, and creates a GitHub **pre-release**.
 
 Release assets include:
 
 - `local-llm-translator-pro-chrome-vX.Y.Z.zip`
 - `local-llm-translator-pro-edge-vX.Y.Z.zip`
-- `local-llm-translator-pro-firefox-vX.Y.Z.xpi`
+- `local-llm-translator-pro-firefox-vX.Y.Z.zip`
 - `local-llm-translator-pro-chrome-vX.Y.Z.crx`
 - `local-llm-translator-pro-edge-vX.Y.Z.crx`
+- `local-llm-translator-pro-firefox-vX.Y.Z.xpi`
 
-Optional repository secrets:
-
-- `CRX_PRIVATE_KEY`: PEM private key used for a stable Chrome/Edge extension identity. If omitted, the workflow generates an ephemeral key for that pre-release.
-- `AMO_JWT_ISSUER` and `AMO_JWT_SECRET`: Mozilla Add-ons credentials used to produce a signed Firefox `.xpi`.
-
-Browser security rules still apply: Chrome/Edge stable may reject off-store CRX files, and unsigned Firefox XPI files are not accepted by stable Firefox.
+The CI does not sign artifacts or use private keys. The `.crx` and `.xpi` files are direct ZIP-container copies for release convenience; they are not signed installers. Chrome/Edge stable may reject off-store CRX files, and unsigned XPI files are not accepted by stable Firefox.
 
 ## Project layout
 
 ```text
 src/shared/       settings, URL normalization, text units, messages, browser facade
-src/background/   service worker/background page, providers, cache, prefetch, local engine
+src/background/   service worker/background page, providers, cache, prefetch
 src/content/      classic content-script bundles: common, early, main, frame
 src/ui/popup/     vanilla HTML/CSS/JS popup
 src/ui/options/   vanilla HTML/CSS/JS settings dashboard and diagnostics
+src/assets/       standard PNG icons generated from the project logo
 ```
 
 Content scripts are classic scripts because browser content-script registration does not support ES modules. `content/common.js` exposes a small shared runtime namespace to `early.js`, `main.js` and `frame.js`. The background and extension pages use ES modules.
@@ -134,7 +129,6 @@ Content scripts are classic scripts because browser content-script registration 
 - `tabs` for active tab resolution and tab messages
 - `scripting` for dynamic content-script registration
 - optional `<all_urls>` for one-time all-sites access
-- optional Firefox `trialML` for browser-managed local translation
 
 There is no `externally_connectable`, no static content-script injection, no cookies API and no webRequest API.
 

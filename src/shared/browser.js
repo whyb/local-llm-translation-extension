@@ -1,9 +1,9 @@
 /**
  * Cross-browser WebExtension facade.
  *
- * Firefox exposes `browser` promises; Chromium-based browsers expose `chrome`
- * promises for the MV3 APIs used here. Keeping this in one place makes the
- * rest of the codebase free of namespace conditionals.
+ * Firefox exposes promise-based `browser` APIs. Chromium browsers expose
+ * callback-first `chrome` APIs; Edge additionally provides a different
+ * `browser` alias. Normalize both surfaces here so callers can always await.
  */
 
 export const isFirefox = typeof navigator !== 'undefined' && /Firefox/i.test(navigator.userAgent);
@@ -22,27 +22,54 @@ export const tabs = extension?.tabs;
 export const scripting = extension?.scripting;
 export const permissions = extension?.permissions;
 export const action = extension?.action;
-export const offscreen = extension?.offscreen;
+
+function callChromeApi(method, context, ...args) {
+  if (isFirefox) return method.apply(context, args);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      if (error) reject(error instanceof Error ? error : new Error(String(error)));
+      else resolve(value);
+    };
+    const callback = (value) => {
+      let error = null;
+      try { error = extension?.runtime?.lastError ?? null; } catch { /* noop */ }
+      finish(error, value);
+    };
+    let returned;
+    try {
+      returned = method.apply(context, [...args, callback]);
+    } catch (error) {
+      finish(error);
+      return;
+    }
+    if (returned && typeof returned.then === 'function') {
+      returned.then((value) => finish(null, value), (error) => finish(error));
+    }
+  });
+}
 
 export async function storageGet(key) {
-  const values = await storage.local.get(key);
+  const values = await callChromeApi(storage.local.get, storage.local, key);
   return values?.[key];
 }
 
 export async function storageSet(key, value) {
-  await storage.local.set({ [key]: value });
+  await callChromeApi(storage.local.set, storage.local, { [key]: value });
 }
 
 export async function storageRemove(key) {
-  await storage.local.remove(key);
+  await callChromeApi(storage.local.remove, storage.local, key);
 }
 
 export async function storageClear() {
-  await storage.local.clear();
+  await callChromeApi(storage.local.clear, storage.local);
 }
 
 export function sendRuntimeMessage(message) {
-  return runtime.sendMessage(message);
+  return callChromeApi(runtime.sendMessage, runtime, message);
 }
 
 export function connectRuntime(name) {
@@ -89,61 +116,67 @@ export function onRuntimeConnect(handler) {
   runtime.onConnect.addListener(listener);
   return () => runtime.onConnect.removeListener(listener);
 }
+
 export function onStorageChanged(handler) {
   storage.onChanged.addListener(handler);
   return () => storage.onChanged.removeListener(handler);
 }
 
 export async function queryTabs(queryInfo) {
-  return tabs.query(queryInfo);
+  return callChromeApi(tabs.query, tabs, queryInfo);
 }
 
 export async function getTab(tabId) {
-  return tabs.get(tabId);
+  return callChromeApi(tabs.get, tabs, tabId);
 }
 
 export async function sendTabMessage(tabId, message, options) {
-  return tabs.sendMessage(tabId, message, options);
+  const args = options === undefined ? [tabId, message] : [tabId, message, options];
+  return callChromeApi(tabs.sendMessage, tabs, ...args);
 }
 
 export async function createTab(properties) {
-  return tabs.create(properties);
+  return callChromeApi(tabs.create, tabs, properties);
 }
 
 export async function updateTab(tabId, properties) {
-  return tabs.update(tabId, properties);
+  return callChromeApi(tabs.update, tabs, tabId, properties);
 }
 
 export async function registerContentScripts(scripts) {
-  return scripting.registerContentScripts(scripts);
+  return callChromeApi(scripting.registerContentScripts, scripting, scripts);
 }
 
 export async function getRegisteredContentScripts(filter) {
-  return scripting.getRegisteredContentScripts(filter);
+  return filter === undefined
+    ? callChromeApi(scripting.getRegisteredContentScripts, scripting)
+    : callChromeApi(scripting.getRegisteredContentScripts, scripting, filter);
 }
 
 export async function unregisterContentScripts(filter) {
-  return scripting.unregisterContentScripts(filter);
+  return filter === undefined
+    ? callChromeApi(scripting.unregisterContentScripts, scripting)
+    : callChromeApi(scripting.unregisterContentScripts, scripting, filter);
 }
 
 export async function executeScript(injection) {
-  return scripting.executeScript(injection);
+  return callChromeApi(scripting.executeScript, scripting, injection);
 }
 
 export async function containsPermissions(permissionsToCheck) {
-  return permissions.contains(permissionsToCheck);
+  return callChromeApi(permissions.contains, permissions, permissionsToCheck);
 }
 
 export async function requestPermissions(permissionsToRequest) {
-  return permissions.request(permissionsToRequest);
+  return callChromeApi(permissions.request, permissions, permissionsToRequest);
 }
 
 export async function removePermissions(permissionsToRemove) {
-  return permissions.remove(permissionsToRemove);
+  return callChromeApi(permissions.remove, permissions, permissionsToRemove);
 }
 
 export async function getAllPermissions() {
-  return permissions.getAll();
+  return callChromeApi(permissions.getAll, permissions);
 }
 
 export function onPermissionsAdded(handler) {

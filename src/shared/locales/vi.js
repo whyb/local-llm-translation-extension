@@ -32,7 +32,7 @@ export default Object.freeze({
   'Connect local or cloud model endpoints and tune routing.': 'Kết nối các điểm cuối mô hình cục bộ hoặc đám mây và tinh chỉnh định tuyến.',
   'Control target language, prompt, glossary and layout guards.': 'Kiểm soát ngôn ngữ đích, lời nhắc, bảng thuật ngữ và các rào chắn bố cục.',
   'Keep repeated navigation fast without making page text ubiquitous.': 'Giữ cho việc điều hướng lặp lại nhanh chóng mà không khiến văn bản trang xuất hiện tràn lan.',
-  'Choose local or LLM translation and govern speculative work.': 'Chọn dịch cục bộ hoặc bằng LLM và quản lý công việc suy đoán.',
+  "Control LLM translation speed and speculative work.": "Điều khiển tốc độ dịch LLM và công việc dịch trước.",
   'Make the in-page controls useful without taking over the page.': 'Làm cho các điều khiển trong trang hữu ích mà không chiếm toàn bộ trang.',
   'Grant access deliberately. Permission alone never turns a site on.': 'Cấp quyền một cách có chủ đích. Chỉ riêng quyền không bao giờ bật một trang web.',
   'Decide what must never reach the model.': 'Quyết định những gì không bao giờ được gửi đến mô hình.',

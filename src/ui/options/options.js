@@ -24,7 +24,7 @@ const SECTION_META = {
   providers: ['PROVIDERS', 'Providers', 'Connect local or cloud model endpoints and tune routing.'],
   translation: ['TRANSLATION', 'Translation', 'Control target language, prompt, glossary and layout guards.'],
   cache: ['CACHE', 'Cache', 'Keep repeated navigation fast without making page text ubiquitous.'],
-  speed: ['SPEED', 'Speed', 'Choose local or LLM translation and govern speculative work.'],
+  speed: ['SPEED', 'Speed', 'Control LLM translation speed and speculative work.'],
   appearance: ['APPEARANCE', 'Appearance', 'Make the in-page controls useful without taking over the page.'],
   sites: ['SITES', 'Sites', 'Grant access deliberately. Permission alone never turns a site on.'],
   exclusions: ['EXCLUSIONS', 'Exclusions', 'Decide what must never reach the model.'],

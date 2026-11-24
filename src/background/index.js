@@ -64,7 +64,12 @@ function rememberFrame(sender, message) {
 
 function sendToFrame(tabId, frameId, message) {
   const options = Number.isInteger(frameId) ? { frameId } : undefined;
-  return sendTabMessage(tabId, message, options).catch(() => undefined);
+  try {
+    // Content notifications are fire-and-forget. Some frames do not call
+    // sendResponse, and waiting on those messages can stall the whole run.
+    Promise.resolve(sendTabMessage(tabId, message, options)).catch(() => undefined);
+  } catch { /* Tab or frame may already be gone. */ }
+  return Promise.resolve();
 }
 
 async function broadcastRun(run, message) {
@@ -74,6 +79,41 @@ async function broadcastRun(run, message) {
     return;
   }
   await Promise.all(frames.map((frame) => sendToFrame(run.tabId, frame.frameId, message)));
+}
+
+function clearRunSettlement(run) {
+  if (!run?.settleTimer) return;
+  clearTimeout(run.settleTimer);
+  run.settleTimer = null;
+}
+
+function runQueuesDrained(run) {
+  for (const frame of run.frames.values()) {
+    if (frame.processing || frame.units.size) return false;
+  }
+  return true;
+}
+
+function scheduleRunSettlement(run) {
+  if (!run || run.state !== 'translating') return;
+  clearRunSettlement(run);
+  run.settleTimer = setTimeout(() => {
+    run.settleTimer = null;
+    if (run.state !== 'translating') return;
+    if (!runQueuesDrained(run)) {
+      scheduleRunSettlement(run);
+      return;
+    }
+    run.state = 'complete';
+    run.updatedAt = Date.now();
+    sendProgress(run);
+    broadcastRun(run, {
+      type: MESSAGE.RUN_SETTLED,
+      runId: run.runId,
+      url: run.url,
+      idleFill: Boolean(state.settings.speed.prefetch.idleFill)
+    }).catch(() => {});
+  }, 2500);
 }
 
 function progressSummary(run) {
@@ -130,6 +170,7 @@ async function startRun(tabId, url, { profileRole = 'primary', auto = false } = 
     updatedAt: Date.now(),
     frames: new Map(),
     controller: new AbortController(),
+    settleTimer: null,
     notice: null
   };
   state.runs.set(key, run);
@@ -141,6 +182,7 @@ async function startRun(tabId, url, { profileRole = 'primary', auto = false } = 
 async function stopRun(tabId, url, reason = 'stop') {
   const run = getRun(tabId, url);
   if (!run) return { ok: true, state: 'idle' };
+  clearRunSettlement(run);
   try { run.controller.abort(new DOMException(reason, 'AbortError')); } catch { /* noop */ }
   run.state = 'idle';
   await broadcastRun(run, { type: MESSAGE.RUN_CANCEL, runId: run.runId, url: run.url, reason });
@@ -151,6 +193,7 @@ async function stopRun(tabId, url, reason = 'stop') {
 async function revertRun(tabId, url) {
   const run = getRun(tabId, url);
   if (run) {
+    clearRunSettlement(run);
     try { run.controller.abort(new DOMException('revert', 'AbortError')); } catch { /* noop */ }
     await broadcastRun(run, { type: MESSAGE.RUN_REVERT, runId: run.runId, url: run.url });
     state.runs.delete(runMapKey(tabId, url));
@@ -213,6 +256,13 @@ async function handleUnitsReport(message, sender) {
   }
   const run = getRun(tabId, message.url, message.runId);
   if (!run || run.runId !== message.runId) return { ok: false, error: 'Run is not active' };
+  clearRunSettlement(run);
+  if (run.state === 'complete' && !run.controller.signal.aborted) {
+    run.state = 'translating';
+    run.notice = null;
+    sendProgress(run);
+  }
+  if (run.state !== 'translating' || run.controller.signal.aborted) return { ok: false, error: 'Run is not active' };
   const frameId = sender.frameId ?? 0;
   const key = frameKey(tabId, frameId);
   let frameState = run.frames.get(key);
@@ -263,14 +313,7 @@ async function handleUnitsReport(message, sender) {
       });
       await savePageSnapshot(run.url, batch);
     }
-    if (run.state === 'translating') {
-      run.state = 'complete';
-      run.updatedAt = Date.now();
-      sendProgress(run);
-      await sendToFrame(tabId, frameId, { type: MESSAGE.RUN_SETTLED, runId: run.runId, url: run.url, idleFill: Boolean(state.settings.speed.prefetch.idleFill) });
-      state.runs.set(runMapKey(tabId, run.url), run);
-      return { ok: true };
-    }
+    if (run.state === 'translating') return { ok: true, queued: false };
     return { ok: true, paused: true };
   } catch (error) {
     if (run.controller.signal.aborted) return { ok: false, error: 'aborted' };
@@ -282,6 +325,7 @@ async function handleUnitsReport(message, sender) {
   } finally {
     frameState.processing = false;
     run.updatedAt = Date.now();
+    if (run.state === 'translating') scheduleRunSettlement(run);
   }
 }
 
@@ -322,7 +366,7 @@ async function handleSetSiteMode(message) {
   if (!domain) return { type: 'site-state-response', url: message.url, ok: false, error: 'No domain for this page.' };
   const rules = state.settings.behaviour.siteRules.filter((rule) => rule.domain !== domain);
   if (message.mode !== null) {
-    rules.push({ domain, url: null, policy: message.mode, targetLang: null, profileId: null, engineMode: null, neverSend: message.mode === 'never' });
+    rules.push({ domain, url: null, policy: message.mode, targetLang: null, profileId: null, neverSend: message.mode === 'never' });
   }
   const enabledSites = new Set(state.settings.behaviour.enabledSites);
   if (message.mode !== null && message.mode !== 'never') enabledSites.add(domain);
@@ -613,6 +657,14 @@ async function activeTab() {
 }
 
 async function resolveMessageTabId(message, sender) {
+  const senderUrl = String(sender?.url ?? sender?.tab?.url ?? '');
+  const senderIsExtensionPage = senderUrl.startsWith(runtime.getURL(''));
+  if (senderIsExtensionPage && Number.isInteger(message?.tabId)) {
+    try {
+      const tab = await getTab(message.tabId);
+      if (tab?.id !== undefined && (!message.url || !tab.url || tab.url === message.url)) return tab.id;
+    } catch { /* The tab may have closed; fall back below. */ }
+  }
   if (Number.isInteger(sender?.tab?.id)) return sender.tab.id;
   if (Number.isInteger(message?.tabId)) {
     try {
@@ -718,6 +770,8 @@ onCommand((command) => {
 onTabUpdated((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'loading' || changeInfo.url) {
     state.autoStarted.delete(runMapKey(tabId, changeInfo.url ?? tab.url ?? ''));
+    const run = state.runs.get(runMapKey(tabId, tab?.url ?? ''));
+    if (run) clearRunSettlement(run);
     state.runs.delete(runMapKey(tabId, tab?.url ?? ''));
   }
 });
@@ -726,6 +780,7 @@ onTabRemoved((tabId) => {
   state.framesByTab.delete(tabId);
   for (const [key, run] of state.runs) {
     if (run.tabId !== tabId) continue;
+    clearRunSettlement(run);
     try { run.controller.abort(); } catch { /* noop */ }
     state.runs.delete(key);
   }

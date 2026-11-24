@@ -12,7 +12,7 @@ const DEFAULT_TEST_TEXT = [
   'No account is required.',
   'Fast, private translation.',
   'Learn more',
-  'Version 2.0.0',
+  'Version 2.0.1',
   'Use {name} to open the dashboard.',
   'Visit https://example.com/docs?lang=en for details.'
 ].join('\n');

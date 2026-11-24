@@ -19,7 +19,7 @@ export function renderSites(ctx) {
 
   const actions = el('div', 'inline-actions');
   actions.append(button('Add site rule', 'secondary', () => {
-    settings.behaviour.siteRules.push({ domain: '', url: null, policy: 'ask', targetLang: null, profileId: null, engineMode: null, neverSend: false });
+    settings.behaviour.siteRules.push({ domain: '', url: null, policy: 'ask', targetLang: null, profileId: null, neverSend: false });
     markDirty(); render();
   }));
   content.append(card('Per-site rules', 'More specific rules override the global policy for matching domains and subdomains.', actions, siteRulesTable(ctx)));

@@ -46,7 +46,8 @@ test('Chromium runtime listeners keep async sendResponse behavior', async () => 
   assert.deepEqual(response, { ok: true, value: 7 });
   delete globalThis.chrome;
 });
-test('Edge uses the native chrome namespace instead of its browser alias', async () => {
+
+test('Edge uses native chrome callbacks instead of its browser alias', async () => {
   let usedNamespace = null;
   Object.defineProperty(globalThis, 'navigator', {
     value: { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/158.0.0.0 Safari/537.36 Edg/158.0.0.0' },
@@ -54,18 +55,25 @@ test('Edge uses the native chrome namespace instead of its browser alias', async
   });
   const browserNamespace = {
     runtime: {
-      sendMessage: async () => {
+      sendMessage: (_message, callback) => {
         usedNamespace = 'browser';
-        return { namespace: 'browser' };
+        callback?.({ namespace: 'browser' });
       }
     }
   };
   const chromeNamespace = {
     runtime: {
-      sendMessage: async () => {
+      lastError: null,
+      sendMessage: (_message, callback) => {
         usedNamespace = 'chrome';
-        return { namespace: 'chrome' };
+        callback?.({ namespace: 'chrome' });
       }
+    },
+    permissions: {
+      request: (_request, callback) => callback?.(true)
+    },
+    tabs: {
+      get: (tabId, callback) => callback?.({ id: tabId, url: 'https://example.com/' })
     }
   };
   globalThis.browser = browserNamespace;
@@ -74,6 +82,8 @@ test('Edge uses the native chrome namespace instead of its browser alias', async
   assert.equal(browser.isFirefox, false);
   assert.equal(browser.extension, chromeNamespace);
   assert.deepEqual(await browser.sendRuntimeMessage({ type: 'test' }), { namespace: 'chrome' });
+  assert.equal(await browser.requestPermissions({ origins: ['<all_urls>'] }), true);
+  assert.deepEqual(await browser.getTab(7), { id: 7, url: 'https://example.com/' });
   assert.equal(usedNamespace, 'chrome');
   delete globalThis.browser;
   delete globalThis.chrome;

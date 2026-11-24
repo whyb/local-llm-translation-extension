@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Local LLM Translator Pro",
-  "version": "2.0.0",
-  "description": "Private, endpoint-agnostic page and selection translation with local or cloud LLMs.",
+  "version": "2.0.1",
+  "description": "Privacy-first browser translation extension powered by local LLMs — your text never leaves your device.",
   "permissions": [
     "storage",
     "tabs",
@@ -25,7 +25,8 @@
       "16": "src/assets/icon-16.png",
       "32": "src/assets/icon-32.png",
       "48": "src/assets/icon-48.png",
-      "128": "src/assets/icon-128.png"
+      "128": "src/assets/icon-128.png",
+      "256": "src/assets/icon-256.png"
     }
   },
   "options_ui": {
@@ -79,6 +80,17 @@
     "16": "src/assets/icon-16.png",
     "32": "src/assets/icon-32.png",
     "48": "src/assets/icon-48.png",
-    "128": "src/assets/icon-128.png"
-  }
+    "128": "src/assets/icon-128.png",
+    "256": "src/assets/icon-256.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/assets/icon-*.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

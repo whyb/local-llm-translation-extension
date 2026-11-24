@@ -2,7 +2,7 @@ import { storageGet, storageSet, onStorageChanged } from './browser.js';
 import { DEFAULT_TARGET_LANGUAGE } from './languages.js';
 import { DEFAULT_PROMPT_TEMPLATES, LEGACY_PROMPT_TEMPLATES, PROMPT_CONTRACT_VERSION } from './prompt.js';
 
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.0.1';
 export const SETTINGS_KEY = 'lbt.settings';
 export const SETTINGS_VERSION = 1;
 export const PROMPT_VERSION = PROMPT_CONTRACT_VERSION;
@@ -20,7 +20,6 @@ export const ADAPTER_DEFAULT_BASE_URLS = Object.freeze({
 });
 export const ROLES = ['primary', 'fallback', 'selection', 'prefetch'];
 export const RENDER_MODES = ['replace', 'bilingual-stacked', 'replace-hover-reveal'];
-export const ENGINE_MODES = ['llm-only'];
 export const SITE_POLICIES = ['auto', 'ask', 'never'];
 export const STRUCTURED_OUTPUT_MODES = ['auto', 'json_schema', 'json_object', 'prompt-only'];
 export const REASONING_MODES = ['off', 'default', 'custom'];
@@ -128,7 +127,6 @@ export const DEFAULT_SETTINGS = {
     }
   },
   speed: {
-    engineMode: 'llm-only',
     zoneWeights: {
       main: 1,
       heading: 1,
@@ -330,7 +328,6 @@ function normalizeSiteRules(value) {
       policy: entry.policy === null || SITE_POLICIES.includes(entry.policy) ? entry.policy : null,
       targetLang: nullableString(entry.targetLang),
       profileId: nullableString(entry.profileId),
-      engineMode: null,
       neverSend: boolOr(entry.neverSend, false)
     }))
     .filter((entry) => entry.domain !== '');
@@ -441,7 +438,6 @@ export function normalizeSettings(raw) {
       }
     },
     speed: {
-      engineMode: 'llm-only',
       zoneWeights: {
         main: numberOr(input.speed?.zoneWeights?.main, d.speed.zoneWeights.main),
         heading: numberOr(input.speed?.zoneWeights?.heading, d.speed.zoneWeights.heading),
@@ -616,10 +612,6 @@ export function resolveSitePolicy(settings, hostname) {
 
 export function resolveSiteTargetLang(settings, hostname) {
   return findSiteRule(settings, hostname)?.targetLang ?? settings.translation.targetLang;
-}
-
-export function resolveSiteEngineMode(settings, hostname) {
-  return 'llm-only';
 }
 
 export function resolveSiteProfileId(settings, hostname, role = 'primary') {

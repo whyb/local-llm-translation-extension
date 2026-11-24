@@ -32,7 +32,7 @@ export default Object.freeze({
   'Connect local or cloud model endpoints and tune routing.': '로컬 또는 클라우드 모델 엔드포인트에 연결하고 라우팅을 조정합니다.',
   'Control target language, prompt, glossary and layout guards.': '대상 언어, 프롬프트, 용어집 및 레이아웃 보호를 제어합니다.',
   'Keep repeated navigation fast without making page text ubiquitous.': '페이지 텍스트를 과도하게 저장하지 않으면서 반복 탐색을 빠르게 유지합니다.',
-  'Choose local or LLM translation and govern speculative work.': '로컬 번역 또는 LLM 번역을 선택하고 사전 실행 작업을 관리합니다.',
+  "Control LLM translation speed and speculative work.": "LLM 번역 속도와 사전 작업을 제어합니다.",
   'Make the in-page controls useful without taking over the page.': '페이지를 가리지 않으면서 페이지 내 컨트롤을 유용하게 만듭니다.',
   'Grant access deliberately. Permission alone never turns a site on.': '액세스 권한은 신중하게 부여하세요. 권한만으로 사이트가 활성화되지는 않습니다.',
   'Decide what must never reach the model.': '모델에 절대 전송되면 안 되는 콘텐츠를 결정합니다.',

@@ -1,13 +1,15 @@
 {
   "name": "local-llm-translator-pro",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "type": "module",
-  "description": "Cross-browser local/cloud LLM page translator",
+  "description": "Privacy-first browser translation extension powered by local LLMs — your text never leaves your device.",
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs && node tests/background-smoke.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

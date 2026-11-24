@@ -32,7 +32,7 @@ export default Object.freeze({
   'Connect local or cloud model endpoints and tune routing.': 'اتصال به نقاط پایانی مدل محلی یا ابری و تنظیم مسیریابی.',
   'Control target language, prompt, glossary and layout guards.': 'کنترل زبان هدف، پرامپت، واژه‌نامه و محافظ‌های چیدمان.',
   'Keep repeated navigation fast without making page text ubiquitous.': 'سریع نگه داشتن پیمایش‌های تکراری بدون فراگیر کردن متن صفحه.',
-  'Choose local or LLM translation and govern speculative work.': 'انتخاب ترجمه محلی یا LLM و مدیریت کارهای حدسی.',
+  "Control LLM translation speed and speculative work.": "سرعت ترجمه LLM و کار پیش‌دستانه را کنترل کنید.",
   'Make the in-page controls useful without taking over the page.': 'کاربردی کردن کنترل‌های درون صفحه بدون تسخیر صفحه.',
   'Grant access deliberately. Permission alone never turns a site on.': 'دسترسی را آگاهانه اعطا کنید. صرف مجوز هرگز سایتی را فعال نمی‌کند.',
   'Decide what must never reach the model.': 'مشخص کنید چه چیزی هرگز نباید به مدل برسد.',
