@@ -10,6 +10,7 @@ import { renderSites } from './sites.js';
 import { renderExclusions } from './exclusions.js';
 import { renderRobustness } from './robustness.js';
 import { renderDiagnostics } from './diagnostics.js';
+import { renderAbout } from './about.js';
 
 const $ = (selector) => document.querySelector(selector);
 const content = $('#content');
@@ -29,7 +30,8 @@ const SECTION_META = {
   sites: ['SITES', 'Sites', 'Grant access deliberately. Permission alone never turns a site on.'],
   exclusions: ['EXCLUSIONS', 'Exclusions', 'Decide what must never reach the model.'],
   robustness: ['ROBUSTNESS', 'Robustness', 'Protect difficult pages and long-running translations.'],
-  diagnostics: ['DIAGNOSTICS', 'Diagnostics', 'Observe actual runs, cache health and failures.']
+  diagnostics: ['DIAGNOSTICS', 'Diagnostics', 'Observe actual runs, cache health and failures.'],
+  about: ['ABOUT', 'About', 'Meet the author and explore the project.']
 };
 
 const renderers = {
@@ -41,7 +43,8 @@ const renderers = {
   sites: renderSites,
   exclusions: renderExclusions,
   robustness: renderRobustness,
-  diagnostics: renderDiagnostics
+  diagnostics: renderDiagnostics,
+  about: renderAbout
 };
 
 let settings = normalizeSettings(null);

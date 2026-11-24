@@ -2,7 +2,7 @@ import { storageGet, storageSet, onStorageChanged } from './browser.js';
 import { DEFAULT_TARGET_LANGUAGE } from './languages.js';
 import { DEFAULT_PROMPT_TEMPLATES, LEGACY_PROMPT_TEMPLATES, PROMPT_CONTRACT_VERSION } from './prompt.js';
 
-export const APP_VERSION = '2.0.1';
+export const APP_VERSION = '2.0.2';
 export const SETTINGS_KEY = 'lbt.settings';
 export const SETTINGS_VERSION = 1;
 export const PROMPT_VERSION = PROMPT_CONTRACT_VERSION;

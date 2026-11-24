@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local LLM Translator Pro",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Privacy-first browser translation extension powered by local LLMs — your text never leaves your device.",
   "permissions": [
     "storage",
@@ -64,7 +64,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "local-llm-translator-pro@local.dev",
+      "id": "local-llm-translator@local.dev",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
         "required": [

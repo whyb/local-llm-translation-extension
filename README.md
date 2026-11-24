@@ -97,7 +97,7 @@ Notes:
 
 ## Release packaging
 
-Push a tag matching `v*.*.*`, for example `v2.0.1`. The GitHub Actions workflow validates that the tag version matches `package.json`, runs all checks, builds Chrome, Edge and Firefox packages, and creates a GitHub **pre-release**.
+Push a tag matching `v*.*.*`, for example `v2.0.2`. The GitHub Actions workflow validates that the tag version matches `package.json`, runs all checks, builds Chrome, Edge and Firefox packages, and creates a GitHub **pre-release**.
 
 Release assets include:
 
@@ -118,7 +118,7 @@ src/background/   service worker/background page, providers, cache, prefetch
 src/content/      classic content-script bundles: common, early, main, frame
 src/ui/popup/     vanilla HTML/CSS/JS popup
 src/ui/options/   vanilla HTML/CSS/JS settings dashboard and diagnostics
-src/assets/       standard PNG icons generated from the project logo
+src/assets/       standard PNG icon set and local author avatar
 ```
 
 Content scripts are classic scripts because browser content-script registration does not support ES modules. `content/common.js` exposes a small shared runtime namespace to `early.js`, `main.js` and `frame.js`. The background and extension pages use ES modules.

@@ -5,19 +5,27 @@ import { readFile } from 'node:fs/promises';
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
 test('product branding is applied consistently', async () => {
-  const [chromeManifest, firefoxManifest, popup, options, content] = await Promise.all([
+  const [chromeManifest, firefoxManifest, popup, options, content, packageJson, optionsScript, aboutSource, aboutCss] = await Promise.all([
     read('../manifest.chrome.json'),
     read('../manifest.firefox.json'),
     read('../src/ui/popup/index.html'),
     read('../src/ui/options/index.html'),
-    read('../src/content/main.js')
+    read('../src/content/main.js'),
+    read('../package.json'),
+    read('../src/ui/options/options.js'),
+    read('../src/ui/options/about.js'),
+    read('../src/ui/options/options.css')
   ]);
   assert.match(chromeManifest, /"name": "Local LLM Translator Pro"/);
   assert.match(firefoxManifest, /"name": "Local LLM Translator Pro"/);
   assert.match(popup, /Local LLM Translator Pro/);
   assert.match(options, /Local LLM Translator Pro/);
   assert.match(content, /Local LLM Translator Pro/);
-  assert.match(chromeManifest, /"version": "2\.0\.1"/);
+  assert.match(chromeManifest, /"version": "2\.0\.2"/);
+  assert.match(firefoxManifest, /"version": "2\.0\.2"/);
+  assert.match(packageJson, /"version": "2\.0\.2"/);
+  assert.match(firefoxManifest, /"id": "local-llm-translator@local\.dev"/);
+  assert.doesNotMatch(firefoxManifest, /local-llm-translator-pro@local\.dev/);
   assert.match(firefoxManifest, /Privacy-first browser translation extension powered by local LLMs — your text never leaves your device\./);
   for (const size of [16, 32, 48, 128, 256]) {
     assert.match(chromeManifest, new RegExp(`"${size}": "src/assets/icon-${size}\\.png"`));
@@ -26,6 +34,18 @@ test('product branding is applied consistently', async () => {
   assert.match(chromeManifest, /"web_accessible_resources": \[\s*\{\s*"resources": \[\s*"src\/assets\/icon-\*\.png"/s);
   assert.match(popup, /src="\.\.\/\.\.\/assets\/icon-48\.png"/);
   assert.match(options, /src="\.\.\/\.\.\/assets\/icon-48\.png"/);
+  assert.match(options, /data-section="about"/);
+  assert.match(optionsScript, /renderAbout/);
+  assert.match(aboutSource, /https:\/\/github\.com\/whyb\/local-llm-translation-extension/);
+  assert.match(aboutSource, /https:\/\/github\.com\/whyb/);
+  assert.match(aboutSource, /\.\.\/\.\.\/assets\/author-avatar\.png/);
+  assert.match(aboutSource, /張小凡/);
+  assert.match(aboutCss, /\.about-avatar\s*\{[^}]*border-radius:\s*50%/s);
+});
+
+test('about avatar is packaged as a real PNG', async () => {
+  const avatar = await readFile(new URL('../src/assets/author-avatar.png', import.meta.url));
+  assert.deepEqual([...avatar.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 });
 
 test('settings brand mark sizing does not override the logo itself', async () => {
@@ -85,6 +105,8 @@ test('README exposes collapsed browser debugging and release workflow packages a
   assert.doesNotMatch(workflow, /CRX_PRIVATE_KEY|AMO_JWT_ISSUER|web-ext@8 sign|--pack-extension/);
   assert.match(workflow, /cp .*\.crx/);
   assert.match(workflow, /firefox_xpi=.*\.xpi/);
+  assert.match(workflow, /local-llm-translator@local\.dev/);
+  assert.match(workflow, /author-avatar\.png/);
 });
 
 

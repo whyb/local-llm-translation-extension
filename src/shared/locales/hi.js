@@ -1,4 +1,14 @@
 export default Object.freeze({
+  "ABOUT": "ABOUT",
+  "About": "About",
+  "Meet the author and explore the project.": "Meet the author and explore the project.",
+  "Author & maintainer": "Author & maintainer",
+  "Portrait of 張小凡": "Portrait of 張小凡",
+  "Local LLM Translator Pro is built by 張小凡 to keep browser translation private, local-first and under your control.": "Local LLM Translator Pro is built by 張小凡 to keep browser translation private, local-first and under your control.",
+  "View project on GitHub": "View project on GitHub",
+  "Author on GitHub": "Author on GitHub",
+  "Version {version}": "Version {version}",
+
   "Local LLM Translator Pro": "Local LLM Translator Pro",
   "Local LLM Translator Pro — Settings": "Local LLM Translator Pro — सेटिंग्स",
   "Settings & diagnostics": "सेटिंग्स एवं निदान",

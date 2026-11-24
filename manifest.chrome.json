@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local LLM Translator Pro",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Privacy-first browser translation extension powered by local LLMs — your text never leaves your device.",
   "minimum_chrome_version": "120",
   "permissions": [

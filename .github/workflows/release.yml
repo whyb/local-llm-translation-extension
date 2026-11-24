@@ -27,6 +27,10 @@ jobs:
           set -euo pipefail
           node -e "const fs=require('fs'); const tag=process.env.TAG_VERSION.replace(/^v/,''); for(const file of ['package.json','manifest.json','manifest.chrome.json','manifest.firefox.json']){const value=JSON.parse(fs.readFileSync(file,'utf8')); if(value.version!==tag){console.error('Tag version '+tag+' does not match '+file+' version '+value.version); process.exit(1);}}"
 
+      - name: Validate Firefox AMO identity
+        run: |
+          node -e "const fs=require('fs'); const id=JSON.parse(fs.readFileSync('manifest.firefox.json','utf8'))?.browser_specific_settings?.gecko?.id; if(id!=='local-llm-translator@local.dev'){console.error('Firefox add-on id must remain local-llm-translator@local.dev, got '+id); process.exit(1);}"
+
       - name: Check, test and build
         run: |
           npm run check
@@ -40,6 +44,7 @@ jobs:
             for size in 16 32 48 128 256; do
               test -f "dist/${browser}/src/assets/icon-${size}.png"
             done
+            test -f "dist/${browser}/src/assets/author-avatar.png"
             test ! -d "dist/${browser}/imgs"
           done
 
