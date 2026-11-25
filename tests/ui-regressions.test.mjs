@@ -26,6 +26,25 @@ test('floating panel removes privacy and hotkey copy and links to GitHub', async
   assert.match(source, /target\s*[:=]\s*['"]_blank['"]/);
 });
 
+test('floating panel replaces page title and URL with translation preferences', async () => {
+  const [source, frameSource] = await Promise.all([
+    read('../src/content/main.js'),
+    read('../src/content/frame.js')
+  ]);
+  assert.doesNotMatch(source, /lbt-page-title|lbt-page-url|refreshPageInfo|\bpageTitle\b|\bpageUrl\b/);
+  assert.match(source, /this\.translationCard = el\('section', 'lbt-page-card lbt-translation-card'\)/);
+  assert.match(source, /this\.translationCard\.dataset\.lbtSection = 'translation'/);
+  assert.match(source, /this\.localized\('h3', 'lbt-translation-title', 'Translation'\)/);
+  assert.match(source, /'Target language'/);
+  assert.match(source, /'Display mode'/);
+  assert.match(source, /\['replace', 'Replace the original'\]/);
+  assert.match(source, /\['bilingual-stacked', 'Bilingual — stacked'\]/);
+  assert.match(source, /\['replace-hover-reveal', 'Replace, hover to reveal'\]/);
+  assert.match(source, /type: 'set-translation-preferences'/);
+  assert.match(source, /renderer\.setMode\(applied\.renderMode\)/);
+  assert.match(frameSource, /renderer\.setMode\(next\.translation\.renderMode\)/);
+});
+
 test('popup opens the Sites section while retaining its privacy card', async () => {
   const [html, source] = await Promise.all([
     read('../src/ui/popup/index.html'),

@@ -281,6 +281,26 @@ test('source extraction covers the complete Settings and popup UI', async () => 
   assert.ok(!keys.has('Pin custom prompt to prefix'), 'removed prompt control leaked into source keys');
 });
 
+test('floating translation controls request all localized labels', async () => {
+  const source = await readFile(path.join(root, 'src/content/main.js'), 'utf8');
+  const panelKeysMatch = source.match(/const PANEL_TRANSLATION_KEYS = Object\.freeze\(\[([\s\S]*?)\]\);/);
+  assert.ok(panelKeysMatch, 'missing floating panel translation key list');
+  const panelKeys = new Set(stringLiterals(panelKeysMatch[1]));
+  for (const key of [
+    'Translation',
+    'Target language',
+    'Display mode',
+    'Replace the original',
+    'Bilingual — stacked',
+    'Replace, hover to reveal',
+    'Search languages or enter a custom tag',
+    'Show language options',
+    'Language options',
+    'Custom values are accepted: type a language name or BCP 47 tag.',
+    'No built-in match. Press Enter or leave the field to use the entered value.'
+  ]) assert.ok(panelKeys.has(key), `floating panel is missing translation key: ${key}`);
+});
+
 test('source extraction excludes implementation data and prompt templates', async () => {
   const keys = await staticSourceKeys();
   for (const value of [

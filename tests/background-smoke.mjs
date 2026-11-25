@@ -56,6 +56,21 @@ if (!connectionTest?.ok || !connectionTest.capabilities?.connectionOk) {
 
 const pong = await sendToBackground({ type: 'ping', sentAt: Date.now() });
 if (pong?.type !== 'pong') throw new Error(`unexpected background response: ${JSON.stringify(pong)}`);
+const uiStrings = await sendToBackground({
+  type: 'ui-translations-request',
+  locale: 'zh-CN',
+  keys: ['Translation', 'Target language', 'Display mode']
+});
+if (uiStrings?.translations?.['Target language'] !== '目标语言' || !Array.isArray(uiStrings.languageOptions)) {
+  throw new Error(`floating panel translations failed: ${JSON.stringify(uiStrings)}`);
+}
+const preferences = await sendToBackground({
+  type: 'set-translation-preferences',
+  preferences: { targetLang: 'zh-TW', renderMode: 'bilingual-stacked' }
+});
+if (!preferences?.ok || preferences.translation?.targetLang !== 'zh-TW' || preferences.translation?.renderMode !== 'bilingual-stacked') {
+  throw new Error(`translation preferences failed: ${JSON.stringify(preferences)}`);
+}
 const enabled = await sendToBackground({ type: 'set-site-mode', url: 'https://example.com/', mode: 'ask' });
 if (!enabled?.ok) throw new Error(`site activation failed: ${JSON.stringify(enabled)}`);
 const run = await sendToBackground({ type: 'translate-page', url: 'https://example.com/', tabId: 1 });

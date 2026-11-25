@@ -28,6 +28,7 @@
   let ui = null;
   let extractionRoots = new Set();
   let panelTranslations = Object.freeze({});
+  let panelLanguageOptions = Object.freeze([]);
   let panelUiLocale = 'en';
   let panelRequestedLocale = 'en';
   let panelTranslationRequest = 0;
@@ -59,6 +60,19 @@
     'This site is blocked. Nothing will be read or sent.',
     'Manual mode never sends text until you press Translate.',
     'Advanced site rules →',
+    'TRANSLATION',
+    'Translation',
+    'Target language',
+    'Display mode',
+    'Replace the original',
+    'Bilingual — stacked',
+    'Replace, hover to reveal',
+    'Search languages or enter a custom tag',
+    'Show language options',
+    'Language options',
+    'Custom values are accepted: type a language name or BCP 47 tag.',
+    'No built-in match. Press Enter or leave the field to use the entered value.',
+    'Save failed: {error}',
     'Site access required',
     'Allow access to all websites once. Nothing is read or changed until you allow it.',
     'Allow all sites',
@@ -147,8 +161,6 @@
     .lbt-page-card, .lbt-card { border: 1px solid var(--lbt-line); border-radius: 16px; background: var(--lbt-card); box-shadow: none; padding: 13px; }
     .lbt-page-card { display: grid; gap: 8px; background: radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--lbt-accent) 13%, transparent), transparent 52%), var(--lbt-card); }
     .lbt-eyebrow { color: var(--lbt-muted); font-size: 10px; font-weight: 750; letter-spacing: .12em; }
-    .lbt-page-title { margin: 0; font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; }
-    .lbt-page-url { color: var(--lbt-muted); font-size: 11px; direction: ltr; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lbt-status-row { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 12px; }
     .lbt-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lbt-muted); box-shadow: 0 0 0 4px color-mix(in srgb, var(--lbt-muted) 15%, transparent); }
     .lbt-dot.translating { background: var(--lbt-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--lbt-accent) 18%, transparent); animation: lbt-pulse 1.4s infinite; }
@@ -170,6 +182,31 @@
     .lbt-row-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 9px; }
     .lbt-card-title { display: grid; gap: 3px; }
     .lbt-card-title h3 { margin: 0; font-size: 13px; line-height: 1.35; }
+    .lbt-translation-card { display: grid; gap: 11px; }
+    .lbt-translation-heading { display: grid; gap: 2px; }
+    .lbt-translation-title { margin: 0; font-size: 14px; line-height: 1.3; }
+    .lbt-translation-title::after { content: ":"; }
+    .lbt-control { display: grid; gap: 6px; min-width: 0; }
+    .lbt-control-label { color: var(--lbt-ink); font-size: 11px; font-weight: 700; line-height: 1.35; }
+    .lbt-language-combobox { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; min-width: 0; border: 1px solid var(--lbt-line); border-radius: 10px; background: color-mix(in srgb, var(--lbt-bg) 70%, var(--lbt-card)); transition: border-color .15s ease, box-shadow .15s ease; }
+    .lbt-language-combobox:focus-within { border-color: var(--lbt-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lbt-accent) 20%, transparent); }
+    .lbt-language-flag { display: flex; align-items: center; justify-content: center; padding-inline-start: 10px; font-size: 17px; line-height: 1; }
+    .lbt-language-input { min-width: 0; width: 100%; border: 0; border-radius: 0; background: transparent; color: var(--lbt-ink); padding: 9px 7px; font: inherit; unicode-bidi: plaintext; text-align: start; }
+    .lbt-language-input:focus-visible { outline: 0; }
+    .lbt-language-toggle { align-self: stretch; min-width: 38px; border: 0; border-inline-start: 1px solid var(--lbt-line); border-start-end-radius: 9px; border-end-end-radius: 9px; background: transparent; color: var(--lbt-muted); cursor: pointer; font: inherit; font-size: 15px; }
+    .lbt-language-toggle:hover { background: color-mix(in srgb, var(--lbt-accent-soft) 78%, transparent); color: var(--lbt-accent); }
+    .lbt-language-input:disabled, .lbt-language-toggle:disabled, .lbt-select:disabled { opacity: .5; cursor: default; }
+    .lbt-language-popup { position: fixed; z-index: 2147483647; overflow: hidden; border: 1px solid var(--lbt-line); border-radius: 12px; background: var(--lbt-card); color: var(--lbt-ink); box-shadow: 0 18px 44px rgba(15,28,52,.24); font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .lbt-language-popup[hidden] { display: none; }
+    .lbt-language-menu { max-height: min(260px, 42vh); overflow-y: auto; padding: 6px; overscroll-behavior: contain; }
+    .lbt-language-option { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 7px; width: 100%; border: 0; border-radius: 8px; background: transparent; color: inherit; padding: 8px; text-align: start; cursor: pointer; font: inherit; }
+    .lbt-language-option:hover, .lbt-language-option.active { background: var(--lbt-accent-soft); color: var(--lbt-accent); }
+    .lbt-language-option-flag { display: flex; align-items: flex-start; justify-content: center; padding-top: 1px; font-size: 17px; line-height: 1.2; }
+    .lbt-language-option-copy { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    .lbt-language-empty { padding: 13px 10px; color: var(--lbt-muted); font-size: 12px; }
+    .lbt-language-footer { border-top: 1px solid var(--lbt-line); padding: 8px 10px; color: var(--lbt-muted); font-size: 10px; line-height: 1.4; }
+    .lbt-select { width: 100%; min-width: 0; border: 1px solid var(--lbt-line); border-radius: 10px; background: color-mix(in srgb, var(--lbt-bg) 70%, var(--lbt-card)); color: var(--lbt-ink); padding: 9px 10px; font: inherit; }
+    .lbt-select:focus-visible { outline: 3px solid color-mix(in srgb, var(--lbt-accent) 20%, transparent); border-color: var(--lbt-accent); }
     .lbt-mode-control { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; border-radius: 12px; background: color-mix(in srgb, var(--lbt-bg) 70%, var(--lbt-card)); padding: 5px; }
     .lbt-mode-control button { padding: 8px 7px; border-color: transparent; background: transparent; font-size: 12px; }
     .lbt-mode-control button.active { background: var(--lbt-card); border-color: var(--lbt-line); box-shadow: 0 3px 10px rgba(20,30,55,.08); }
@@ -199,6 +236,28 @@
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
+  }
+
+  function normalizedSearchText(value) {
+    return String(value || '')
+      .normalize('NFKD')
+      .replace(/\p{M}/gu, '')
+      .toLowerCase();
+  }
+
+  function flagForTerritory(territory) {
+    if (!/^[A-Z]{2}$/.test(territory)) return '🌐';
+    return String.fromCodePoint(...[...territory].map((letter) => 127397 + letter.charCodeAt(0)));
+  }
+
+  function languageTerritoryForOption(value) {
+    const key = String(value || '').trim().toLowerCase();
+    const exact = panelLanguageOptions.find((option) => option.value.toLowerCase() === key);
+    if (exact?.territory) return exact.territory;
+    const region = String(value || '').split('-').slice(1).find((part) => /^[A-Za-z]{2}$/.test(part));
+    if (region) return region.toUpperCase();
+    const base = key.split('-')[0];
+    return panelLanguageOptions.find((option) => option.value.toLowerCase() === base)?.territory || '';
   }
 
   function panelLocaleFromSettings(candidate = settings) {
@@ -239,6 +298,11 @@
       const response = await sendMessage({ type: 'ui-translations-request', locale, keys: [...PANEL_TRANSLATION_KEYS] });
       if (response?.ok !== false) {
         translations = normalizePanelTranslations(response);
+        if (Array.isArray(response?.languageOptions)) {
+          panelLanguageOptions = Object.freeze(response.languageOptions.filter((option) => option
+            && typeof option.value === 'string'
+            && typeof option.name === 'string'));
+        }
         if (typeof response?.locale === 'string' && response.locale.trim()) resolvedLocale = response.locale.trim();
       }
     } catch { /* English fallback is intentional when the background is unavailable. */ }
@@ -303,8 +367,18 @@
       this.progressPercent = null;
       this.progressCache = null;
       this.statusDot = null;
-      this.pageTitle = null;
-      this.pageUrl = null;
+      this.translationCard = null;
+      this.languageInput = null;
+      this.languageToggle = null;
+      this.languageFlag = null;
+      this.languagePopup = null;
+      this.languageMenu = null;
+      this.languageFooter = null;
+      this.languageResults = [];
+      this.languageActiveIndex = -1;
+      this.displayModeSelect = null;
+      this.preferencesBusy = false;
+      this.preferenceSavePromise = Promise.resolve();
       this.modeControl = null;
       this.modeHint = null;
       this.allSitesPill = null;
@@ -358,6 +432,11 @@
       for (const node of this.shadow.querySelectorAll('[data-lbt-i18n-aria-label]')) {
         node.setAttribute('aria-label', translatePanel(node.dataset.lbtI18nAriaLabel));
       }
+      for (const node of this.shadow.querySelectorAll('[data-lbt-i18n-placeholder]')) {
+        node.setAttribute('placeholder', translatePanel(node.dataset.lbtI18nPlaceholder));
+      }
+      this.refreshTranslationControls();
+      if (this.languagePopup && !this.languagePopup.hidden) this.renderLanguageMenu();
       this.renderSiteMode();
       this.updateProgressVisuals();
       this.renderPermissionNotice();
@@ -389,7 +468,7 @@
       this.fab.addEventListener('click', () => {
         this.panel.hidden = !this.panel.hidden;
         if (!this.panel.hidden) {
-          this.refreshPageInfo();
+          this.refreshTranslationControls();
           this.refreshSiteState().catch(() => {});
         }
       });
@@ -412,9 +491,8 @@
       header.append(brand, settingsButton);
 
       const pageCard = el('section', 'lbt-page-card');
+      pageCard.dataset.lbtSection = 'current-page';
       pageCard.append(this.localized('div', 'lbt-eyebrow', 'CURRENT PAGE'));
-      this.pageTitle = document.title ? el('h2', 'lbt-page-title', document.title) : this.localized('h2', 'lbt-page-title', 'Current page');
-      this.pageUrl = el('div', 'lbt-page-url', location.href);
       const statusRow = el('div', 'lbt-status-row');
       this.statusDot = el('span', 'lbt-dot');
       this.status = this.localized('span', 'lbt-status-text', 'Ready');
@@ -428,7 +506,9 @@
       this.progressPercent = el('span');
       this.progressCache = el('span');
       stats.append(this.progressDone, this.progressTotal, this.progressPercent, this.progressCache);
-      pageCard.append(this.pageTitle, this.pageUrl, statusRow, progress, stats);
+      pageCard.append(statusRow, progress, stats);
+
+      const translationCard = this.buildTranslationCard();
 
       const actions = el('div', 'lbt-actions');
       this.translateButton = this.localized('button', 'primary', 'Translate page');
@@ -516,30 +596,365 @@
       github.rel = 'noopener noreferrer';
       footer.append(el('span', '', 'v' + LBT.api.runtime.getManifest().version), github);
 
-      this.panel.append(header, pageCard, this.permissionCard, actions, modeCard, footer);
+      this.panel.append(header, pageCard, translationCard, this.permissionCard, actions, modeCard, footer);
       this.fabShell.append(this.fab);
       container.append(this.fabShell, this.panel);
-      shadow.append(container);
+      shadow.append(container, this.languagePopup);
 
       this.onDocumentPointerDown = (event) => {
         if (this.panel.hidden) return;
         const path = event.composedPath?.() || [];
-        if (path.includes(this.container)) return;
+        if (path.includes(this.container) || path.includes(this.languagePopup)) return;
+        this.commitLanguageInput();
+        this.closeLanguageMenu();
         this.panel.hidden = true;
       };
       this.onDocumentKeyDown = (event) => {
-        if (event.key === 'Escape' && !this.panel.hidden) this.panel.hidden = true;
+        if (event.key !== 'Escape') return;
+        if (this.languagePopup && !this.languagePopup.hidden) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.commitLanguageInput();
+          this.closeLanguageMenu();
+          this.languageInput?.focus();
+          return;
+        }
+        if (!this.panel.hidden) this.panel.hidden = true;
+      };
+      this.onLanguageViewportChange = () => {
+        if (this.languagePopup && !this.languagePopup.hidden) this.positionLanguagePopup();
       };
       document.addEventListener('pointerdown', this.onDocumentPointerDown, true);
       document.addEventListener('keydown', this.onDocumentKeyDown, true);
+      window.addEventListener('resize', this.onLanguageViewportChange, { passive: true });
+      window.addEventListener('scroll', this.onLanguageViewportChange, true);
       window.addEventListener('pagehide', () => {
         document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
         document.removeEventListener('keydown', this.onDocumentKeyDown, true);
+        window.removeEventListener('resize', this.onLanguageViewportChange);
+        window.removeEventListener('scroll', this.onLanguageViewportChange, true);
       }, { once: true });
       this.renderSiteMode();
       this.renderPermissionNotice();
       this.updateProgressVisuals();
       this.applyAppearance();
+    }
+
+    buildTranslationCard() {
+      this.translationCard = el('section', 'lbt-page-card lbt-translation-card');
+      this.translationCard.dataset.lbtSection = 'translation';
+      const heading = el('div', 'lbt-translation-heading');
+      heading.append(
+        this.localized('div', 'lbt-eyebrow', 'TRANSLATION'),
+        this.localized('h3', 'lbt-translation-title', 'Translation')
+      );
+
+      const targetControl = el('div', 'lbt-control');
+      const targetLabel = this.localized('label', 'lbt-control-label', 'Target language');
+      targetLabel.htmlFor = 'lbt-panel-target-language';
+      const combobox = el('div', 'lbt-language-combobox');
+      this.languageFlag = el('span', 'lbt-language-flag');
+      this.languageFlag.setAttribute('aria-hidden', 'true');
+      this.languageInput = el('input', 'lbt-language-input');
+      this.languageInput.id = 'lbt-panel-target-language';
+      this.languageInput.type = 'text';
+      this.languageInput.autocomplete = 'off';
+      this.languageInput.spellcheck = false;
+      this.languageInput.setAttribute('role', 'combobox');
+      this.languageInput.setAttribute('aria-autocomplete', 'list');
+      this.languageInput.setAttribute('aria-haspopup', 'listbox');
+      this.languageInput.setAttribute('aria-controls', 'lbt-panel-language-menu');
+      this.languageInput.setAttribute('aria-expanded', 'false');
+      this.localizeAttribute(this.languageInput, 'placeholder', 'Search languages or enter a custom tag');
+      this.languageToggle = el('button', 'lbt-language-toggle', '⌄');
+      this.languageToggle.type = 'button';
+      this.localizeAttribute(this.languageToggle, 'aria-label', 'Show language options');
+      this.languageToggle.setAttribute('aria-controls', 'lbt-panel-language-menu');
+      this.languageToggle.setAttribute('aria-expanded', 'false');
+      combobox.append(this.languageFlag, this.languageInput, this.languageToggle);
+      targetControl.append(targetLabel, combobox);
+
+      this.languagePopup = el('div', 'lbt-language-popup');
+      this.languagePopup.hidden = true;
+      this.languageMenu = el('div', 'lbt-language-menu');
+      this.languageMenu.id = 'lbt-panel-language-menu';
+      this.languageMenu.setAttribute('role', 'listbox');
+      this.localizeAttribute(this.languageMenu, 'aria-label', 'Language options');
+      this.languageFooter = this.localized('div', 'lbt-language-footer', 'Custom values are accepted: type a language name or BCP 47 tag.');
+      this.languagePopup.append(this.languageMenu, this.languageFooter);
+
+      const displayControl = el('div', 'lbt-control');
+      const displayLabel = this.localized('label', 'lbt-control-label', 'Display mode');
+      displayLabel.htmlFor = 'lbt-panel-display-mode';
+      this.displayModeSelect = el('select', 'lbt-select');
+      this.displayModeSelect.id = 'lbt-panel-display-mode';
+      for (const [value, key] of [
+        ['replace', 'Replace the original'],
+        ['bilingual-stacked', 'Bilingual — stacked'],
+        ['replace-hover-reveal', 'Replace, hover to reveal']
+      ]) {
+        const option = this.localized('option', '', key);
+        option.value = value;
+        this.displayModeSelect.append(option);
+      }
+      displayControl.append(displayLabel, this.displayModeSelect);
+
+      this.languageInput.addEventListener('focus', () => this.openLanguageMenu());
+      this.languageInput.addEventListener('input', () => {
+        this.syncLanguageFlag();
+        this.openLanguageMenu(true);
+      });
+      this.languageInput.addEventListener('keydown', (event) => this.onLanguageKeyDown(event));
+      this.languageInput.addEventListener('blur', () => {
+        setTimeout(() => {
+          const active = this.shadow?.activeElement || document.activeElement;
+          if (this.languagePopup?.contains(active) || this.languageInput?.closest('.lbt-language-combobox')?.contains(active)) return;
+          this.commitLanguageInput();
+          this.closeLanguageMenu();
+        }, 0);
+      });
+      this.languageToggle.addEventListener('click', () => {
+        if (this.languagePopup.hidden) {
+          this.languageInput.focus();
+          this.openLanguageMenu();
+        } else {
+          this.commitLanguageInput();
+          this.closeLanguageMenu(true);
+        }
+      });
+      this.displayModeSelect.addEventListener('change', () => {
+        this.queueTranslationPreferenceSave({ renderMode: this.displayModeSelect.value }).catch(() => {});
+      });
+
+      this.translationCard.append(heading, targetControl, displayControl);
+      this.refreshTranslationControls(true);
+      return this.translationCard;
+    }
+
+    refreshTranslationControls(force = false) {
+      if (!this.languageInput || !this.displayModeSelect) return;
+      const focused = (this.shadow?.activeElement || document.activeElement) === this.languageInput;
+      if (force || !focused) {
+        this.languageInput.value = String(settings.translation.targetLang ?? '');
+        this.syncLanguageFlag();
+      }
+      this.displayModeSelect.value = settings.translation.renderMode;
+      this.syncPreferenceAvailability();
+    }
+
+    syncPreferenceAvailability() {
+      const targetDisabled = this.preferencesBusy || this.translating;
+      if (this.languageInput) this.languageInput.disabled = targetDisabled;
+      if (this.languageToggle) this.languageToggle.disabled = targetDisabled;
+      if (this.displayModeSelect) this.displayModeSelect.disabled = this.preferencesBusy;
+      if (this.translationCard) this.translationCard.setAttribute('aria-busy', String(this.preferencesBusy));
+      if (targetDisabled) this.closeLanguageMenu();
+    }
+
+    setPreferenceBusy(value) {
+      this.preferencesBusy = Boolean(value);
+      this.syncPreferenceAvailability();
+    }
+
+    queueTranslationPreferenceSave(patch) {
+      this.preferenceSavePromise = this.preferenceSavePromise
+        .catch(() => {})
+        .then(() => this.saveTranslationPreferences(patch));
+      return this.preferenceSavePromise;
+    }
+
+    async saveTranslationPreferences() {
+      if (!this.languageInput || !this.displayModeSelect || this.translating) return false;
+      const requested = {
+        targetLang: this.languageInput.value.trim() || settings.translation.targetLang,
+        renderMode: this.displayModeSelect.value || settings.translation.renderMode
+      };
+      this.setPreferenceBusy(true);
+      try {
+        const response = await sendMessage({ type: 'set-translation-preferences', preferences: requested });
+        if (!response?.ok) throw new Error(response?.error || 'Could not save translation settings.');
+        const applied = {
+          targetLang: response.translation?.targetLang ?? requested.targetLang,
+          renderMode: response.translation?.renderMode ?? requested.renderMode
+        };
+        settings = {
+          ...settings,
+          translation: { ...settings.translation, ...applied }
+        };
+        mutateWithoutObservation(() => renderer.setMode(applied.renderMode));
+        this.refreshTranslationControls(true);
+        return true;
+      } catch (error) {
+        this.refreshTranslationControls(true);
+        this.setStatus('Save failed: {error}', { error: LBT.errorMessage(error) });
+        return false;
+      } finally {
+        this.setPreferenceBusy(false);
+      }
+    }
+
+    syncLanguageFlag() {
+      if (!this.languageFlag || !this.languageInput) return;
+      this.languageFlag.textContent = flagForTerritory(languageTerritoryForOption(this.languageInput.value.trim()));
+    }
+
+    openLanguageMenu(resetScroll = false) {
+      if (!this.languagePopup || !this.languageInput || this.languageInput.disabled) return;
+      const wasHidden = this.languagePopup.hidden;
+      this.renderLanguageMenu(resetScroll || wasHidden);
+      this.languagePopup.hidden = false;
+      this.languageInput.setAttribute('aria-expanded', 'true');
+      this.languageToggle.setAttribute('aria-expanded', 'true');
+      this.languageToggle.textContent = '⌃';
+      this.positionLanguagePopup();
+    }
+
+    closeLanguageMenu(focus = false) {
+      if (!this.languagePopup || this.languagePopup.hidden) return;
+      this.languagePopup.hidden = true;
+      this.languageActiveIndex = -1;
+      this.languageInput?.setAttribute('aria-expanded', 'false');
+      this.languageInput?.removeAttribute('aria-activedescendant');
+      this.languageToggle?.setAttribute('aria-expanded', 'false');
+      if (this.languageToggle) this.languageToggle.textContent = '⌄';
+      if (focus) this.languageInput?.focus();
+    }
+
+    positionLanguagePopup() {
+      if (!this.languagePopup || !this.languageInput) return;
+      const anchor = this.languageInput.closest('.lbt-language-combobox');
+      const rect = anchor?.getBoundingClientRect();
+      if (!rect) return;
+      const margin = 8;
+      const gap = 7;
+      const width = Math.max(220, Math.min(rect.width, window.innerWidth - margin * 2));
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin));
+      const below = window.innerHeight - rect.bottom - margin;
+      const above = rect.top - margin;
+      const openAbove = below < 190 && above > below;
+      this.languagePopup.style.width = `${Math.round(width)}px`;
+      this.languagePopup.style.left = `${Math.round(left)}px`;
+      if (openAbove) {
+        this.languagePopup.style.top = 'auto';
+        this.languagePopup.style.bottom = `${Math.round(window.innerHeight - rect.top + gap)}px`;
+      } else {
+        this.languagePopup.style.bottom = 'auto';
+        this.languagePopup.style.top = `${Math.round(rect.bottom + gap)}px`;
+      }
+    }
+
+    renderLanguageMenu(resetScroll = false) {
+      if (!this.languageMenu || !this.languageInput) return;
+      const query = normalizedSearchText(this.languageInput.value).trim();
+      const terms = query.split(/\s+/).filter(Boolean);
+      const results = panelLanguageOptions
+        .map((option) => {
+          const haystack = option.searchText || normalizedSearchText(`${option.value} ${option.name} ${option.nativeName || ''}`);
+          if (!terms.every((term) => haystack.includes(term))) return null;
+          const values = [option.value, option.name, option.nativeName].map(normalizedSearchText);
+          const score = terms.length && values.some((value) => value === query) ? 0 : terms.length && values.some((value) => value.startsWith(query)) ? 1 : 2;
+          return { option, score };
+        })
+        .filter(Boolean)
+        .sort((left, right) => left.score - right.score)
+        .slice(0, 120)
+        .map(({ option }) => option);
+      this.languageResults = results;
+      this.languageActiveIndex = -1;
+      this.languageInput.removeAttribute('aria-activedescendant');
+      this.languageMenu.replaceChildren();
+      if (!results.length) {
+        this.languageMenu.append(this.localized('div', 'lbt-language-empty', 'No built-in match. Press Enter or leave the field to use the entered value.'));
+        return;
+      }
+      results.forEach((option, index) => {
+        const entry = el('button', 'lbt-language-option');
+        entry.type = 'button';
+        entry.id = `lbt-panel-language-option-${index}`;
+        entry.dataset.language = option.value;
+        entry.setAttribute('role', 'option');
+        entry.setAttribute('aria-selected', String(option.value.toLowerCase() === this.languageInput.value.trim().toLowerCase()));
+        const flag = el('span', 'lbt-language-option-flag', flagForTerritory(option.territory));
+        flag.setAttribute('aria-hidden', 'true');
+        const meta = option.nativeName && option.nativeName.toLowerCase() !== option.name.toLowerCase()
+          ? `${option.nativeName} · ${option.value}`
+          : option.value;
+        entry.append(flag, el('span', 'lbt-language-option-copy', `${option.name} · ${meta}`));
+        entry.addEventListener('mousedown', (event) => event.preventDefault());
+        entry.addEventListener('click', () => {
+          this.languageInput.value = option.value;
+          this.syncLanguageFlag();
+          this.closeLanguageMenu();
+          this.commitLanguageInput();
+          this.languageInput.focus();
+        });
+        this.languageMenu.append(entry);
+      });
+      const selectedIndex = results.findIndex((option) => option.value.toLowerCase() === this.languageInput.value.trim().toLowerCase());
+      if (selectedIndex >= 0) this.setLanguageActive(selectedIndex, resetScroll);
+      else if (resetScroll) this.languageMenu.scrollTop = 0;
+    }
+
+    setLanguageActive(index, scroll = true) {
+      if (!this.languageMenu || !this.languageInput) return;
+      const entries = this.languageMenu.querySelectorAll('.lbt-language-option');
+      if (!entries.length) {
+        this.languageActiveIndex = -1;
+        this.languageInput.removeAttribute('aria-activedescendant');
+        return;
+      }
+      this.languageActiveIndex = (index + entries.length) % entries.length;
+      entries.forEach((entry, entryIndex) => entry.classList.toggle('active', entryIndex === this.languageActiveIndex));
+      const active = entries[this.languageActiveIndex];
+      this.languageInput.setAttribute('aria-activedescendant', active.id);
+      if (scroll) active.scrollIntoView({ block: 'nearest' });
+    }
+
+    commitLanguageInput() {
+      if (!this.languageInput) return;
+      const nextValue = this.languageInput.value.trim() || settings.translation.targetLang;
+      this.languageInput.value = nextValue;
+      this.syncLanguageFlag();
+      if (nextValue && nextValue !== settings.translation.targetLang) {
+        this.queueTranslationPreferenceSave({ targetLang: nextValue }).catch(() => {});
+      }
+    }
+
+    onLanguageKeyDown(event) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (this.languagePopup.hidden) this.openLanguageMenu();
+        this.setLanguageActive(this.languageActiveIndex + 1);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (this.languagePopup.hidden) this.openLanguageMenu();
+        this.setLanguageActive(this.languageActiveIndex < 0 ? this.languageResults.length - 1 : this.languageActiveIndex - 1);
+        return;
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (!this.languagePopup.hidden && this.languageActiveIndex >= 0 && this.languageResults[this.languageActiveIndex]) {
+          const option = this.languageResults[this.languageActiveIndex];
+          this.languageInput.value = option.value;
+          this.syncLanguageFlag();
+        }
+        this.commitLanguageInput();
+        this.closeLanguageMenu();
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        this.commitLanguageInput();
+        this.closeLanguageMenu();
+        return;
+      }
+      if (event.key === 'Tab') {
+        this.commitLanguageInput();
+        this.closeLanguageMenu();
+      }
     }
 
     applyAppearance() {
@@ -552,18 +967,6 @@
       if (!this.status) return;
       this.statusParams = params;
       this.localizeNode(this.status, text, params);
-    }
-
-    refreshPageInfo() {
-      if (!this.pageTitle) return;
-      if (document.title) {
-        delete this.pageTitle.dataset.lbtI18n;
-        this.translationParams.delete(this.pageTitle);
-        this.pageTitle.textContent = document.title;
-      } else {
-        this.localizeNode(this.pageTitle, 'Current page');
-      }
-      if (this.pageUrl) this.pageUrl.textContent = location.href;
     }
 
     async refreshSiteState() {
@@ -669,6 +1072,7 @@
       this.translating = Boolean(value);
       if (this.translateButton) this.translateButton.disabled = this.translating;
       if (this.stopButton) this.stopButton.disabled = !this.translating;
+      this.syncPreferenceAvailability();
       this.updateProgressVisuals();
     }
 
@@ -1114,10 +1518,13 @@
     ui.refreshSiteState().catch(() => {});
     subscribeSettings((next) => {
       const localeChanged = panelLocaleFromSettings(next) !== panelRequestedLocale;
+      const renderModeChanged = next.translation.renderMode !== renderer.mode;
       settings = next;
-      renderer.mode = next.translation.renderMode;
+      if (renderModeChanged) mutateWithoutObservation(() => renderer.setMode(next.translation.renderMode));
+      else renderer.mode = next.translation.renderMode;
       ui?.refreshSiteState().catch(() => {});
       ui?.applyAppearance();
+      ui?.refreshTranslationControls();
       if (localeChanged) {
         refreshPanelTranslations(next).then((changed) => {
           if (changed) ui?.updateTranslations();

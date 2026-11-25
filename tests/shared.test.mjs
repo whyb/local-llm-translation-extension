@@ -103,6 +103,25 @@ test('popup action messages accept an explicit tab id', () => {
   assert.equal(validateContentMessage({ type: MESSAGE.GET_PROGRESS, url: 'https://example.com/', tabId: 7 }), true);
   assert.equal(validateContentMessage({ type: MESSAGE.TRANSLATE_PAGE, url: 'https://example.com/', tabId: '7' }), false);
 });
+
+test('translation preference messages validate target language and render mode', () => {
+  assert.equal(validateContentMessage({
+    type: MESSAGE.SET_TRANSLATION_PREFERENCES,
+    preferences: { targetLang: 'zh-TW', renderMode: 'bilingual-stacked' }
+  }), true);
+  assert.equal(validateContentMessage({
+    type: MESSAGE.SET_TRANSLATION_PREFERENCES,
+    preferences: { targetLang: 'zh-TW' }
+  }), true);
+  assert.equal(validateContentMessage({
+    type: MESSAGE.SET_TRANSLATION_PREFERENCES,
+    preferences: { renderMode: 'unsupported' }
+  }), false);
+  assert.equal(validateContentMessage({
+    type: MESSAGE.SET_TRANSLATION_PREFERENCES,
+    preferences: { targetLang: 'x'.repeat(201) }
+  }), false);
+});
 test('language catalogue covers global languages and supports local search', () => {
   const options = getLanguageOptions('en');
   const codes = new Set(options.map((option) => option.value));

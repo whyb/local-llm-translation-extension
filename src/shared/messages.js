@@ -52,6 +52,7 @@ export const MESSAGE = Object.freeze({
   EXCLUSIONS_PREVIEW_REQUEST: 'exclusions-preview-request',
   HARD_RESET_REQUEST: 'hard-reset-request',
   SET_AUTO_TRANSLATE_DYNAMIC: 'set-auto-translate-dynamic',
+  SET_TRANSLATION_PREFERENCES: 'set-translation-preferences',
   SAVE_SETTINGS: 'save-settings',
   LOAD_SETTINGS: 'load-settings',
   UI_TRANSLATIONS_REQUEST,
@@ -200,6 +201,12 @@ export function validateContentMessage(message) {
       return typeof message.url === 'string' && Array.isArray(message.rules);
     case MESSAGE.SET_AUTO_TRANSLATE_DYNAMIC:
       return typeof message.value === 'boolean';
+    case MESSAGE.SET_TRANSLATION_PREFERENCES:
+      return isObject(message.preferences)
+        && (message.preferences.targetLang === undefined
+          || (typeof message.preferences.targetLang === 'string' && message.preferences.targetLang.length <= 200))
+        && (message.preferences.renderMode === undefined
+          || ['replace', 'bilingual-stacked', 'replace-hover-reveal'].includes(message.preferences.renderMode));
     case MESSAGE.SAVE_SETTINGS:
       return isObject(message.settings);
     case MESSAGE.LOAD_SETTINGS:

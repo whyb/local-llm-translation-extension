@@ -136,7 +136,12 @@
   async function boot() {
     settings = await getSettings();
     renderer.mode = settings.translation.renderMode;
-    subscribeSettings((next) => { settings = next; renderer.mode = next.translation.renderMode; });
+    subscribeSettings((next) => {
+      const renderModeChanged = next.translation.renderMode !== settings.translation.renderMode;
+      settings = next;
+      if (renderModeChanged) mutateWithoutObservation(() => renderer.setMode(next.translation.renderMode));
+      else renderer.mode = next.translation.renderMode;
+    });
     try { await sendMessage({ type: 'frame-hello', url: location.href, documentKey }); } catch { /* background may be starting */ }
     document.documentElement.setAttribute('data-lbt-frame-loaded', 'true');
     LBT.api.runtime.onMessage.addListener((message) => {

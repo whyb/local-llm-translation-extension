@@ -4,6 +4,7 @@ import {
   runtime, sendTabMessage, storageClear, storageGet, storageSet
 } from '../shared/browser.js';
 import { translateForLocale } from '../shared/i18n.js';
+import { getLanguageOptions } from '../shared/languages.js';
 import {
   ALL_URLS, domainMatches, loadSettings, normalizeSettings, resolveSiteTargetLang,
   saveSettings, sanitizeSettingsForContent, SETTINGS_KEY
@@ -108,7 +109,10 @@ function uiTranslationsResponse(message) {
   const locale = message.locale ?? getUILanguage();
   const keys = Array.isArray(message.keys) ? message.keys : [];
   const translations = Object.fromEntries(keys.map((key) => [key, translateForLocale(locale, key)]));
-  return { ok: true, locale, translations };
+  const languageOptions = getLanguageOptions(getUILanguage()).map(({ value, name, nativeName, territory, searchText }) => ({
+    value, name, nativeName, territory, searchText
+  }));
+  return { ok: true, locale, translations, languageOptions };
 }
 
 function clearAutoStartedForTab(tabId) {
@@ -1173,6 +1177,21 @@ async function handleMessage(message, sender) {
     case MESSAGE.SET_AUTO_TRANSLATE_DYNAMIC: {
       const value = await updateAutoTranslateDynamic(tabId, message.value);
       return { ok: true, value };
+    }
+
+    case MESSAGE.SET_TRANSLATION_PREFERENCES: {
+      if (!validateContentMessage(message)) return { ok: false, error: 'Invalid translation preference update.' };
+      const translation = { ...state.settings.translation };
+      if (message.preferences.targetLang !== undefined) translation.targetLang = message.preferences.targetLang;
+      if (message.preferences.renderMode !== undefined) translation.renderMode = message.preferences.renderMode;
+      state.settings = await saveSettings({ ...state.settings, translation });
+      return {
+        ok: true,
+        translation: {
+          targetLang: state.settings.translation.targetLang,
+          renderMode: state.settings.translation.renderMode
+        }
+      };
     }
 
     case MESSAGE.SAVE_SETTINGS: {
