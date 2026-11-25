@@ -2,7 +2,7 @@ import { storageGet, storageSet, onStorageChanged } from './browser.js';
 import { DEFAULT_TARGET_LANGUAGE } from './languages.js';
 import { DEFAULT_PROMPT_TEMPLATES, LEGACY_PROMPT_TEMPLATES, PROMPT_CONTRACT_VERSION } from './prompt.js';
 
-export const APP_VERSION = '2.0.2';
+export const APP_VERSION = '2.0.3';
 export const SETTINGS_KEY = 'lbt.settings';
 export const SETTINGS_VERSION = 1;
 export const PROMPT_VERSION = PROMPT_CONTRACT_VERSION;
@@ -86,6 +86,7 @@ export const DEFAULT_SETTINGS = {
       single: DEFAULT_PROMPT_TEMPLATES.single
     },
     renderMode: 'replace',
+    autoTranslateDynamic: true,
     formality: 'default',
     glossary: [],
     customPromptAdditions: '',
@@ -140,8 +141,6 @@ export const DEFAULT_SETTINGS = {
     prefetch: {
       hoverPrefetch: false,
       hoverPrefetchMaxPages: 2,
-      idleFill: true,
-      idleFillTokenBudgetPerMinute: 20000,
       boilerplatePriming: true,
       maxPagesInFlight: 1,
       maxTokensPerMinute: 20000,
@@ -395,6 +394,7 @@ export function normalizeSettings(raw) {
       targetLang: stringOr(input.translation?.targetLang, d.translation.targetLang) || d.translation.targetLang,
       promptTemplates,
       renderMode: enumOr(input.translation?.renderMode, RENDER_MODES, d.translation.renderMode),
+      autoTranslateDynamic: boolOr(input.translation?.autoTranslateDynamic, d.translation.autoTranslateDynamic),
       formality: enumOr(input.translation?.formality, ['default', 'informal', 'formal'], d.translation.formality),
       glossary: normalizeGlossary(input.translation?.glossary),
       customPromptAdditions: stringOr(input.translation?.customPromptAdditions, ''),
@@ -451,8 +451,6 @@ export function normalizeSettings(raw) {
       prefetch: {
         hoverPrefetch: boolOr(input.speed?.prefetch?.hoverPrefetch, d.speed.prefetch.hoverPrefetch),
         hoverPrefetchMaxPages: Math.max(0, Math.floor(numberOr(input.speed?.prefetch?.hoverPrefetchMaxPages, d.speed.prefetch.hoverPrefetchMaxPages))),
-        idleFill: boolOr(input.speed?.prefetch?.idleFill, d.speed.prefetch.idleFill),
-        idleFillTokenBudgetPerMinute: Math.max(0, Math.floor(numberOr(input.speed?.prefetch?.idleFillTokenBudgetPerMinute, d.speed.prefetch.idleFillTokenBudgetPerMinute))),
         boilerplatePriming: boolOr(input.speed?.prefetch?.boilerplatePriming, d.speed.prefetch.boilerplatePriming),
         maxPagesInFlight: Math.max(0, Math.floor(numberOr(input.speed?.prefetch?.maxPagesInFlight, d.speed.prefetch.maxPagesInFlight))),
         maxTokensPerMinute: Math.max(0, Math.floor(numberOr(input.speed?.prefetch?.maxTokensPerMinute, d.speed.prefetch.maxTokensPerMinute))),

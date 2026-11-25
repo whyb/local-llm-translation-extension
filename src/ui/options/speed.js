@@ -7,15 +7,13 @@ export function renderSpeed(ctx) {
   const prefetch = el('div', 'toggle-grid');
   prefetch.append(
     check('Hover prefetch', speed.prefetch.hoverPrefetch, (value) => { speed.prefetch.hoverPrefetch = value; markDirty(); }, 'Fetch same-site links on hover. Off by default.'),
-    check('Idle fill', speed.prefetch.idleFill, (value) => { speed.prefetch.idleFill = value; markDirty(); }, 'Continue translating late content while a run is active.'),
     check('Navigation prediction', speed.prefetch.nextNavPrediction, (value) => { speed.prefetch.nextNavPrediction = value; markDirty(); }, 'Warm likely next pages. Off by default.'),
     check('Pause on battery saver', speed.prefetch.pauseOnBatterySaver, (value) => { speed.prefetch.pauseOnBatterySaver = value; markDirty(); }),
     check('Pause on metered connection', speed.prefetch.pauseOnMeteredConnection, (value) => { speed.prefetch.pauseOnMeteredConnection = value; markDirty(); })
   );
   const prefetchBudgets = controlGrid(
-    'three',
+    'two',
     field('Hover pages', numberInput(speed.prefetch.hoverPrefetchMaxPages, (value) => { speed.prefetch.hoverPrefetchMaxPages = value ?? 2; markDirty(); }, { min: '0', step: '1' })),
-    field('Idle token budget/min', numberInput(speed.prefetch.idleFillTokenBudgetPerMinute, (value) => { speed.prefetch.idleFillTokenBudgetPerMinute = value ?? 20000; markDirty(); }, { min: '0', step: '1000' })),
     field('Max pages in flight', numberInput(speed.prefetch.maxPagesInFlight, (value) => { speed.prefetch.maxPagesInFlight = value ?? 1; markDirty(); }, { min: '0', step: '1' })),
     field('Max tokens/min', numberInput(speed.prefetch.maxTokensPerMinute, (value) => { speed.prefetch.maxTokensPerMinute = value ?? 20000; markDirty(); }, { min: '0', step: '1000' }))
   );

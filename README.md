@@ -11,7 +11,9 @@ Privacy-first browser translation extension powered by local LLMs — your text 
 - Translation memory and page snapshots in IndexedDB
 - Early cache painting at `document_start`
 - One-time all-sites access with per-site translation policies
+- Navigation-bound runs that stop immediately on refresh, link navigation, back/forward and SPA route changes
 - SPA, bfcache, iframe and MutationObserver support
+- Full-inventory reconciliation for AJAX content, with a default-on per-page auto-continue checkbox
 - Optional hover/next-navigation prefetch with budget and URL guards
 - Diagnostics, redacted bug reports, provider probing, settings/TM import export and hard reset
 
@@ -97,7 +99,7 @@ Notes:
 
 ## Release packaging
 
-Push a tag matching `v*.*.*`, for example `v2.0.2`. The GitHub Actions workflow validates that the tag version matches `package.json`, runs all checks, builds Chrome, Edge and Firefox packages, and creates a GitHub **pre-release**.
+Push a tag matching `v*.*.*`, for example `v2.0.3`. The GitHub Actions workflow validates that the tag version matches `package.json`, runs all checks, builds Chrome, Edge and Firefox packages, and creates a GitHub **pre-release**.
 
 Release assets include:
 
@@ -126,7 +128,7 @@ Content scripts are classic scripts because browser content-script registration 
 ## Permissions
 
 - `storage` for settings and API keys
-- `tabs` for active tab resolution and tab messages
+- `activeTab` for temporary current-tab access when the user invokes the popup or a keyboard command
 - `scripting` for dynamic content-script registration
 - optional `<all_urls>` for one-time all-sites access
 

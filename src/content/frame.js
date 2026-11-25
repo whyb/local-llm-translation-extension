@@ -11,6 +11,10 @@
   let timer = null;
   let observer = null;
   const framePrefix = `f${Math.random().toString(36).slice(2, 10)}-`;
+  const documentKey = typeof crypto?.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `frame-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  let inventoryRevision = 0;
 
   function payload(unit) {
     return { id: framePrefix + unit.id, kind: unit.kind, text: unit.text, zone: unit.zone, srcLang: unit.srcLang, attribute: unit.attribute ?? null, priority: unit.priority ?? null };
@@ -18,14 +22,17 @@
 
   async function report() {
     if (!runId) return;
-    const units = LBT.extractAll(true);
-    if (!units.length) return;
+    const units = LBT.extractAll(false);
+    inventoryRevision += 1;
     try {
       await sendMessage({
         type: 'units-report',
         url: runUrl,
         runId,
-        units: units.slice(0, Number(settings.speed.runaway.pageUnitCeiling) || 500).map(payload)
+        documentKey,
+        snapshot: true,
+        inventoryRevision,
+        units: units.slice(0, Math.min(5000, Math.max(1, Number(settings.speed.runaway.pageUnitCeiling) || 5000))).map(payload)
       });
     } catch (error) {
       debugLog('frame units report failed', LBT.errorMessage(error));
@@ -41,7 +48,7 @@
   function installObserver() {
     if (observer) return;
     observer = new MutationObserver(schedule);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style', 'hidden', 'aria-hidden', 'title', 'alt', 'placeholder', 'aria-label', 'value'] });
   }
 
   function skipFrame(url) {
@@ -61,14 +68,20 @@
 
   function delivery(message) {
     if (message.runId !== runId || !Array.isArray(message.segments)) return;
-    for (const segment of message.segments) renderer.apply(segment.unitId, segment.text);
+    const applied = [];
+    for (const segment of message.segments) {
+      if (renderer.apply(segment.unitId, segment.text)) applied.push(segment.unitId);
+    }
+    if (applied.length) {
+      sendMessage({ type: 'segment-applied', url: runUrl, runId, documentKey, unitIds: applied }).catch(() => {});
+    }
   }
 
   async function boot() {
     settings = await getSettings();
     renderer.mode = settings.translation.renderMode;
     subscribeSettings((next) => { settings = next; renderer.mode = next.translation.renderMode; });
-    try { await sendMessage({ type: 'frame-hello' }); } catch { /* background may be starting */ }
+    try { await sendMessage({ type: 'frame-hello', url: location.href, documentKey }); } catch { /* background may be starting */ }
     document.documentElement.setAttribute('data-lbt-frame-loaded', 'true');
     LBT.api.runtime.onMessage.addListener((message) => {
       if (!message || typeof message !== 'object') return;
@@ -84,7 +97,6 @@
           if (message.runId && message.runId !== runId) begin(message);
           break;
         case 'run-settled':
-          if (!settings.speed.prefetch.idleFill) { observer?.disconnect(); observer = null; }
           break;
         case 'toggle-render-mode': renderer.toggleMode(); break;
         default: break;

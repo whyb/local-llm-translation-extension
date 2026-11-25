@@ -12,7 +12,7 @@ const DEFAULT_TEST_TEXT = [
   'No account is required.',
   'Fast, private translation.',
   'Learn more',
-  'Version 2.0.2',
+  'Version 2.0.3',
   'Use {name} to open the dashboard.',
   'Visit https://example.com/docs?lang=en for details.'
 ].join('\n');
@@ -35,6 +35,18 @@ export function renderTranslation(ctx) {
     preview.dataset.mode = value;
     markDirty();
   }), 'The preview updates immediately. Choose whether the page keeps the source text visible.');
+  const autoTranslateDynamic = check(
+    'Automatically translate new page content',
+    translation.autoTranslateDynamic !== false,
+    (value) => { translation.autoTranslateDynamic = value; markDirty(); },
+    'Only continues after you start translating manually or use an Automatic site policy, and only while the original page is still open.'
+  );
+  content.append(card(
+    'Dynamic page updates',
+    'Keep up with content loaded after the initial translation without following navigation to another page.',
+    controlGrid('one', autoTranslateDynamic)
+  ));
+
   const identity = controlGrid(
     'two',
     target,

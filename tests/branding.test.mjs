@@ -21,9 +21,9 @@ test('product branding is applied consistently', async () => {
   assert.match(popup, /Local LLM Translator Pro/);
   assert.match(options, /Local LLM Translator Pro/);
   assert.match(content, /Local LLM Translator Pro/);
-  assert.match(chromeManifest, /"version": "2\.0\.2"/);
-  assert.match(firefoxManifest, /"version": "2\.0\.2"/);
-  assert.match(packageJson, /"version": "2\.0\.2"/);
+  assert.match(chromeManifest, /"version": "2\.0\.3"/);
+  assert.match(firefoxManifest, /"version": "2\.0\.3"/);
+  assert.match(packageJson, /"version": "2\.0\.3"/);
   assert.match(firefoxManifest, /"id": "local-llm-translator@local\.dev"/);
   assert.doesNotMatch(firefoxManifest, /local-llm-translator-pro@local\.dev/);
   assert.match(firefoxManifest, /Privacy-first browser translation extension powered by local LLMs — your text never leaves your device\./);

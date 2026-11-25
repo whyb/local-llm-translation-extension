@@ -16,12 +16,14 @@ export const MESSAGE = Object.freeze({
   RUN_SETTLED: 'run-settled',
   RUN_RESUME: 'run-resume',
   SEGMENT_DELIVERY: 'segment-delivery',
+  SEGMENT_APPLIED: 'segment-applied',
   PROGRESS_UPDATE: 'progress-update',
   TOGGLE_RENDER_MODE: 'toggle-render-mode',
   TRANSLATE_SELECTION: 'translate-selection',
   SELECTION_REQUEST: 'selection-translate-request',
   SELECTION_DELIVERY: 'selection-delivery',
   SPA_NAVIGATE: 'spa-navigate',
+  PAGE_CONTEXT_CHANGED: 'page-context-changed',
   BFCACHE_RESTORE: 'bfcache-restore',
   RUN_PAUSED: 'run-paused',
   HOVER_INTENT: 'hover-intent',
@@ -44,6 +46,7 @@ export const MESSAGE = Object.freeze({
   DIAGNOSTICS_REQUEST: 'diagnostics-request',
   EXCLUSIONS_PREVIEW_REQUEST: 'exclusions-preview-request',
   HARD_RESET_REQUEST: 'hard-reset-request',
+  SET_AUTO_TRANSLATE_DYNAMIC: 'set-auto-translate-dynamic',
   SAVE_SETTINGS: 'save-settings',
   LOAD_SETTINGS: 'load-settings'
 });
@@ -74,7 +77,8 @@ export function validateContentMessage(message) {
   if (!isMessage(message)) return false;
   switch (message.type) {
     case MESSAGE.PING:
-      return true;
+      return (message.url === undefined || typeof message.url === 'string')
+        && (message.documentKey === undefined || typeof message.documentKey === 'string');
     case MESSAGE.TRANSLATE_PAGE:
     case MESSAGE.STOP:
     case MESSAGE.REVERT:
@@ -86,13 +90,24 @@ export function validateContentMessage(message) {
       return typeof message.url === 'string'
         && (message.mode === null || ['auto', 'ask', 'never'].includes(message.mode));
     case MESSAGE.OPEN_OPTIONS:
-    case MESSAGE.FRAME_HELLO:
       return true;
+    case MESSAGE.FRAME_HELLO:
+      return message.url === undefined || typeof message.url === 'string';
     case MESSAGE.UNITS_REPORT:
       return typeof message.url === 'string'
         && typeof message.runId === 'string'
         && Array.isArray(message.units)
-        && message.units.length <= 5000;
+        && message.units.length <= 5000
+        && (message.snapshot === undefined || typeof message.snapshot === 'boolean')
+        && (message.documentKey === undefined || typeof message.documentKey === 'string')
+        && (message.inventoryRevision === undefined || (Number.isInteger(message.inventoryRevision) && message.inventoryRevision >= 0));
+    case MESSAGE.SEGMENT_APPLIED:
+      return typeof message.url === 'string'
+        && typeof message.runId === 'string'
+        && (message.documentKey === undefined || typeof message.documentKey === 'string')
+        && Array.isArray(message.unitIds)
+        && message.unitIds.length <= 5000
+        && message.unitIds.every((unitId) => typeof unitId === 'string');
     case MESSAGE.SELECTION_REQUEST:
       return typeof message.url === 'string'
         && typeof message.requestId === 'string'
@@ -102,6 +117,11 @@ export function validateContentMessage(message) {
       return typeof message.url === 'string'
         && typeof message.key === 'string'
         && (message.previousKey === null || typeof message.previousKey === 'string');
+    case MESSAGE.PAGE_CONTEXT_CHANGED:
+      return typeof message.url === 'string'
+        && typeof message.documentKey === 'string'
+        && ['navigation', 'pagehide', 'spa-navigate'].includes(message.reason)
+        && (message.runId === null || message.runId === undefined || typeof message.runId === 'string');
     case MESSAGE.BFCACHE_RESTORE:
       return typeof message.url === 'string' && typeof message.translated === 'boolean';
     case MESSAGE.RUN_PAUSED:
@@ -152,6 +172,8 @@ export function validateContentMessage(message) {
       return typeof message.url === 'string';
     case MESSAGE.EXCLUSIONS_PREVIEW_REQUEST:
       return typeof message.url === 'string' && Array.isArray(message.rules);
+    case MESSAGE.SET_AUTO_TRANSLATE_DYNAMIC:
+      return typeof message.value === 'boolean';
     case MESSAGE.SAVE_SETTINGS:
       return isObject(message.settings);
     case MESSAGE.LOAD_SETTINGS:

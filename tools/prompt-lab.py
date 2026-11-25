@@ -42,7 +42,7 @@ BATCH_CASES = [
             "Models: gemma4_26b_a4b",
             "Fast, private translation - on your device.",
             "Learn more",
-            "Version 2.0.2",
+            "Version 2.0.3",
         ],
     },
     {

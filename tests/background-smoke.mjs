@@ -1,7 +1,7 @@
 const listeners = {};
 const event = (name) => ({ addListener(fn) { (listeners[name] ??= []).push(fn); }, removeListener() {} });
 globalThis.chrome = {
-  runtime: { sendMessage: async () => ({ ok: true }), connect: () => ({ postMessage() {}, disconnect() {} }), onMessage: event('runtimeMessage'), onConnect: event('runtimeConnect'), getManifest: () => ({ version: '2.0.2' }), reload() {}, getURL: (path) => path, openOptionsPage: async () => {} },
+  runtime: { sendMessage: async () => ({ ok: true }), connect: () => ({ postMessage() {}, disconnect() {} }), onMessage: event('runtimeMessage'), onConnect: event('runtimeConnect'), getManifest: () => ({ version: '2.0.3' }), reload() {}, getURL: (path) => path, openOptionsPage: async () => {} },
   storage: { local: { get: async () => ({}), set: async () => {}, remove: async () => {}, clear: async () => {} }, onChanged: event('storageChanged') },
   tabs: { query: async () => [{ id: 1, url: 'https://example.com/', title: 'Example' }], get: async () => ({ id: 1, url: 'https://example.com/' }), sendMessage: async () => undefined, create: async () => ({}), update: async () => ({}), onUpdated: event('tabUpdated'), onRemoved: event('tabRemoved'), onActivated: event('tabActivated') },
   scripting: { registerContentScripts: async () => {}, unregisterContentScripts: async () => {}, executeScript: async () => [] },

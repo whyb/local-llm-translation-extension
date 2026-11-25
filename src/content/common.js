@@ -48,11 +48,11 @@
 
   const DEFAULT_CONTENT_SETTINGS = {
     translation: {
-      targetLang: 'en', renderMode: 'replace', formality: 'default', glossary: [], customPromptAdditions: '',
+      targetLang: 'en', renderMode: 'replace', autoTranslateDynamic: true, formality: 'default', glossary: [], customPromptAdditions: '',
       pinCustomPromptToPrefix: false, layoutGuards: { whitespace: true, bidi: true, clippedExpansion: true, rubyWbr: true, maxExpansionRatio: 1.5 }
     },
     speed: {
-      prefetch: { hoverPrefetch: false, idleFill: true, nextNavPrediction: false },
+      prefetch: { hoverPrefetch: false, nextNavPrediction: false },
       runaway: { pageUnitCeiling: 500, mutationStormDetection: true, mutationStormWindowMs: 3000, mutationStormMaxMutations: 300 },
       contentMemory: { maxRetainedOriginals: 5000 }
     },
@@ -376,13 +376,14 @@
         if (!attributeIsEnabled(attribute) || !attributeApplies(element, attribute)) continue;
         const value = element.getAttribute(attribute);
         if (value === null || !meaningfulText(value)) continue;
-        let set = state.attributeUnitByElement.get(element);
-        if (!set) { set = new Set(); state.attributeUnitByElement.set(element, set); }
+        let entries = state.attributeUnitByElement.get(element);
+        if (!entries) { entries = new Map(); state.attributeUnitByElement.set(element, entries); }
         const key = `${attribute}:${value}`;
-        if (onlyNew && set.has(key)) continue;
-        set.add(key);
+        const existing = entries.get(attribute);
+        if (onlyNew && existing?.key === key) continue;
+        const id = existing?.key === key ? existing.id : nextUnitId('lbt-a');
+        entries.set(attribute, { key, id });
         const zone = classifyZone(element);
-        const id = nextUnitId('lbt-a');
         const unit = {
           id,
           kind: 'attribute',
@@ -715,10 +716,26 @@
     if (!settings?.enabled || !api.runtime.connect) return null;
     let port;
     try { port = api.runtime.connect({ name: 'lbt.run.keepalive' }); } catch { return null; }
+    let closed = false;
     const timer = setInterval(() => {
-      try { port.postMessage({ type: 'run-port-keepalive', runId, url }); } catch { /* disconnected */ }
+      if (closed) return;
+      try { port.postMessage({ type: 'run-port-keepalive', runId, url }); } catch { close(); }
     }, Math.max(1000, Number(settings.intervalMs) || 12000));
-    const close = () => { clearInterval(timer); try { port.disconnect(); } catch { /* noop */ } };
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      clearInterval(timer);
+      try { port.disconnect(); } catch { /* noop */ }
+      if (state.keepAlive?.port === port) state.keepAlive = null;
+    };
+    try {
+      port.onDisconnect?.addListener(() => {
+        // Chrome reports bfcache-driven port closure through runtime.lastError.
+        // Consume it here so it is not surfaced as an unchecked extension error.
+        try { void api.runtime?.lastError; } catch { /* noop */ }
+        close();
+      });
+    } catch { /* optional */ }
     state.keepAlive = { port, close };
     return state.keepAlive;
   }

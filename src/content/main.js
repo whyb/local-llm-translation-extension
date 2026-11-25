@@ -3,15 +3,22 @@
   'use strict';
   const LBT = globalThis.LBT;
   if (!LBT) return;
-  const { api, state, Renderer, sendMessage, getSettings, subscribeSettings, normalizePageKey, mark, debugLog } = LBT;
+  const { api, state, Renderer, sendMessage, getSettings, subscribeSettings, mark, debugLog } = LBT;
   const renderer = new Renderer();
+  const documentKey = typeof crypto?.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `doc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   let settings = state.settings;
   let runId = null;
+  let lastRunId = null;
   let runUrl = location.href;
+  let sessionHref = location.href;
+  let sessionActive = false;
+  let inventoryRevision = 0;
   let extractionTimer = null;
   let mutationObserver = null;
   let navTimer = null;
-  let lastPageKey = normalizePageKey(location.href);
+  let lastPageHref = location.href;
   let mutationCount = 0;
   let mutationWindowStart = Date.now();
   let lastSelection = null;
@@ -48,6 +55,10 @@
     .lbt-actions button:disabled { opacity: .45; cursor: default; }
     .lbt-progress { height: 6px; background: #e9edf5; border-radius: 99px; overflow: hidden; margin-top: 10px; }
     .lbt-progress > span { display: block; width: 0; height: 100%; background: linear-gradient(90deg,#2563eb,#7c3aed); transition: width .2s ease; }
+    .lbt-auto-dynamic { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 2px; border: 1px solid rgba(37,99,235,.2); border-radius: 10px; background: rgba(37,99,235,.07); padding: 9px 10px; color: #24324a; font-size: 12px; line-height: 1.35; cursor: pointer; }
+    .lbt-auto-dynamic input { flex: none; width: 15px; height: 15px; margin: 1px 0 0; accent-color: #2563eb; }
+    .lbt-auto-dynamic strong { display: block; font-size: 12px; }
+    .lbt-auto-dynamic small { display: block; margin-top: 2px; color: #61708b; font-size: 10px; }
     .lbt-hud { position: fixed; z-index: 2147483645; left: 14px; bottom: 14px; background: rgba(15,23,42,.9); color: #fff; border-radius: 12px; padding: 8px 11px; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; box-shadow: 0 10px 28px rgba(0,0,0,.24); white-space: pre; }
     .lbt-sel-button, .lbt-sel-bubble { position: fixed; z-index: 2147483647; font: 13px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     .lbt-sel-button { border: 1px solid rgba(148,163,184,.5); background: #111827; color: white; border-radius: 999px; padding: 8px 12px; box-shadow: 0 10px 28px rgba(15,23,42,.28); cursor: pointer; }
@@ -84,6 +95,19 @@
     return { host, shadow };
   }
 
+  function setAutoTranslatePreference(value) {
+    const enabled = Boolean(value);
+    settings.translation.autoTranslateDynamic = enabled;
+    ui?.setAutoTranslateDynamic(enabled);
+    sendMessage({
+      type: 'set-auto-translate-dynamic',
+      value: enabled,
+      url: location.href,
+      documentKey,
+      runId
+    }).catch((error) => ui?.setStatus(LBT.errorMessage(error)));
+  }
+
   class PageUi {
     constructor() {
       this.translating = false;
@@ -93,6 +117,8 @@
       this.panel = null;
       this.status = null;
       this.progressBar = null;
+      this.autoDynamicLabel = null;
+      this.autoDynamicCheckbox = null;
       this.translateButton = null;
       this.stopButton = null;
       this.revertButton = null;
@@ -139,6 +165,14 @@
       close.addEventListener('click', () => { this.panel.hidden = true; });
       title.append(close);
       this.status = el('div', 'lbt-status', 'Ready');
+      this.autoDynamicLabel = el('label', 'lbt-auto-dynamic');
+      this.autoDynamicCheckbox = el('input');
+      this.autoDynamicCheckbox.type = 'checkbox';
+      this.autoDynamicCheckbox.checked = settings.translation.autoTranslateDynamic !== false;
+      this.autoDynamicCheckbox.addEventListener('change', () => setAutoTranslatePreference(this.autoDynamicCheckbox.checked));
+      const autoDynamicCopy = el('span');
+      autoDynamicCopy.append(el('strong', '', 'Automatically translate new content'), el('small', '', 'Only on this page after you start or finish a translation.'));
+      this.autoDynamicLabel.append(this.autoDynamicCheckbox, autoDynamicCopy);
       const actions = el('div', 'lbt-actions');
       this.translateButton = el('button', 'primary', 'Translate');
       this.stopButton = el('button', '', 'Stop');
@@ -148,21 +182,30 @@
       this.translateButton.addEventListener('click', async () => {
         this.setStatus('Starting translation…');
         try {
-          const response = await sendMessage({ type: 'translate-page', url: location.href });
+          const response = await sendMessage({ type: 'translate-page', url: location.href, documentKey });
           if (response?.error) this.setStatus(response.error);
         } catch (error) {
           this.setStatus(`Could not reach the translation service: ${LBT.errorMessage(error)}`);
         }
       });
       this.stopButton.addEventListener('click', () => {
-        sendMessage({ type: 'stop', url: location.href }).catch((error) => this.setStatus(LBT.errorMessage(error)));
+        sendMessage({ type: 'stop', url: location.href, runId: runId || lastRunId, documentKey }).catch((error) => this.setStatus(LBT.errorMessage(error)));
+        sessionActive = false;
+        stopObserver();
+        runId = null;
+        runPaused = false;
+        state.keepAlive?.close?.();
         this.setTranslating(false);
+        this.setStatus('Translation stopped.');
       });
       this.revertButton.addEventListener('click', () => {
-        sendMessage({ type: 'revert', url: location.href }).catch((error) => this.setStatus(LBT.errorMessage(error)));
+        sendMessage({ type: 'revert', url: location.href, runId: runId || lastRunId, documentKey }).catch((error) => this.setStatus(LBT.errorMessage(error)));
+        sessionActive = false;
+        stopObserver();
         mutateWithoutObservation(() => renderer.revertAll());
         runId = null;
         runPaused = false;
+        state.keepAlive?.close?.();
         this.setTranslating(false);
         this.setStatus('Original text restored.');
       });
@@ -173,7 +216,7 @@
       const progress = el('div', 'lbt-progress');
       this.progressBar = el('span');
       progress.append(this.progressBar);
-      this.panel.append(title, this.status, actions, progress);
+      this.panel.append(title, this.status, this.autoDynamicLabel, actions, progress);
       this.fabShell.append(this.fab);
       container.append(this.fabShell, this.panel);
       shadow.append(container);
@@ -213,15 +256,28 @@
       if (this.stopButton) this.stopButton.disabled = !this.translating;
       if (!this.fab || !this.fabShell) return;
       const complete = this.progress.total > 0 && this.progress.done >= this.progress.total;
+      const waiting = this.progress.total > 0 && this.progress.done < this.progress.total;
+      const percent = this.progress.total ? Math.round((this.progress.done / this.progress.total) * 100) : 0;
       this.fabShell.dataset.active = String(this.translating);
       this.fabShell.dataset.indeterminate = String(this.translating && this.progress.total === 0);
       this.fabShell.dataset.complete = String(complete && !this.translating);
-      this.fab.classList.remove('is-progress');
-      this.fabBadge.textContent = this.translating ? '…' : complete ? '✓' : '';
+      this.fab.classList.toggle('is-progress', !complete && (this.translating || waiting));
+      this.fabBadge.textContent = this.translating ? '…' : complete ? '✓' : waiting ? `${percent}%` : '';
       this.fabBadge.hidden = !this.fabBadge.textContent;
-      this.fab.title = this.translating ? 'Local LLM Translator Pro — translating' : complete ? 'Local LLM Translator Pro — complete' : 'Local LLM Translator Pro';
+      this.fab.title = this.translating
+        ? 'Local LLM Translator Pro — translating'
+        : complete
+          ? 'Local LLM Translator Pro — complete'
+          : waiting
+            ? `Local LLM Translator Pro — ${this.progress.done}/${this.progress.total} (${percent}%)`
+            : 'Local LLM Translator Pro';
       this.fab.setAttribute('aria-label', this.fab.title);
       if (this.translating) this.fabShell.style.setProperty('--lbt-fab-progress', '0%');
+    }
+
+    setAutoTranslateDynamic(value) {
+      if (!this.autoDynamicCheckbox) return;
+      this.autoDynamicCheckbox.checked = Boolean(value);
     }
 
     setProgress(done, total) {
@@ -285,14 +341,22 @@
   }
 
   async function reportUnits(units) {
-    if (!runId || !units.length) return;
-    const ceiling = Number(settings.speed.runaway.pageUnitCeiling) || 500;
+    if (!runId || !sessionActive) return;
+    if (location.href !== sessionHref) {
+      handlePageContextChanged('spa-navigate');
+      return;
+    }
+    const ceiling = Math.min(5000, Math.max(1, Number(settings.speed.runaway.pageUnitCeiling) || 5000));
     const limited = units.slice(0, ceiling);
+    inventoryRevision += 1;
     try {
       await sendMessage({
         type: 'units-report',
-        url: runUrl,
+        url: sessionHref,
         runId,
+        documentKey,
+        snapshot: true,
+        inventoryRevision,
         units: limited.map(unitPayload)
       });
     } catch (error) {
@@ -300,18 +364,22 @@
     }
   }
 
-  async function extractAndReport(onlyNew = true) {
-    const units = LBT.extractAll(onlyNew);
-    if (!units.length) return;
+  async function extractAndReport() {
+    if (!runId || !sessionActive) return;
+    const units = LBT.extractAll(false);
     await reportUnits(units);
   }
 
   function scheduleExtraction() {
-    if (!runId) return;
+    if (!runId || !sessionActive) return;
     if (extractionTimer) clearTimeout(extractionTimer);
     extractionTimer = setTimeout(() => {
       extractionTimer = null;
-      extractAndReport(true).catch(() => {});
+      if (location.href !== sessionHref) {
+        handlePageContextChanged('spa-navigate');
+        return;
+      }
+      extractAndReport().catch(() => {});
     }, 300);
   }
 
@@ -342,7 +410,7 @@
         return;
       }
       const relevant = mutations.some((mutation) => {
-        if (mutation.type === 'childList') return [...mutation.addedNodes].some((node) => node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE);
+        if (mutation.type === 'childList') return [...mutation.addedNodes, ...mutation.removedNodes].some((node) => node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE);
         return mutation.type === 'characterData' || mutation.type === 'attributes';
       });
       if (relevant) scheduleExtraction();
@@ -358,34 +426,61 @@
   }
 
   function beginRun(message) {
+    if (message.documentKey && message.documentKey !== documentKey) return;
     runId = message.runId;
+    lastRunId = message.runId;
     runUrl = message.url || location.href;
+    sessionHref = runUrl;
+    sessionActive = true;
+    inventoryRevision = 0;
+    lastPageHref = location.href;
     runPaused = false;
     mutationCount = 0;
     mutationWindowStart = Date.now();
+    ui?.setAutoTranslateDynamic(settings.translation.autoTranslateDynamic !== false);
     ui?.setProgress(0, 0);
     ui?.setTranslating(true);
     ui?.setStatus('Translating page…');
     LBT.keepAlivePort(runId, runUrl);
     mark('lbt:run-begin');
     installMutationObserver();
-    extractAndReport(false).catch(() => {});
+    extractAndReport().catch(() => {});
+  }
+
+  function acknowledgeSegments(message, unitIds) {
+    if (!runId || !unitIds.length || message.runId !== runId) return;
+    sendMessage({
+      type: 'segment-applied',
+      url: sessionHref,
+      runId,
+      documentKey,
+      unitIds
+    }).catch(() => {});
   }
 
   function applyDelivery(message) {
-    if (!runId || runPaused || message.runId !== runId || !Array.isArray(message.segments)) return;
+    if (!runId || runPaused || message.runId !== runId || !sessionActive || !Array.isArray(message.segments)) return;
+    if (message.documentKey && message.documentKey !== documentKey) return;
+    if (location.href !== sessionHref) return;
+    const applied = [];
     mutateWithoutObservation(() => {
-      for (const segment of message.segments) renderer.apply(segment.unitId, segment.text);
+      for (const segment of message.segments) {
+        if (renderer.apply(segment.unitId, segment.text)) applied.push(segment.unitId);
+      }
     });
+    acknowledgeSegments(message, applied);
     mark('lbt:first-segment-committed');
   }
 
   function progress(message) {
     if (message.runId && runId && message.runId !== runId) return;
+    if (!sessionActive) return;
     const total = Number(message.total) || 0;
     const done = Number(message.done) || 0;
     ui?.setProgress(done, total);
     if (message.state === 'error') {
+      sessionActive = false;
+      stopObserver();
       runId = null;
       runPaused = false;
       ui?.setTranslating(false);
@@ -398,11 +493,23 @@
       ui?.setStatus(message.notice?.message || 'Translation paused.');
       return;
     }
-    if (total > 0 && done >= total) {
+    if (message.state === 'translating') {
+      runPaused = false;
+      ui?.setTranslating(true);
+      ui?.setStatus(message.pending > 0 ? `Translating ${message.pending} new or remaining segments…` : 'Translating page…');
+      return;
+    }
+    if (message.state === 'complete') {
       runPaused = false;
       ui?.setTranslating(false);
-      ui?.setStatus('Translation complete.');
-      mark('lbt:run-settled');
+      if (total === 0 || done >= total) {
+        ui?.setStatus('Translation complete.');
+        mark('lbt:run-settled');
+      } else {
+        ui?.setStatus(settings.translation.autoTranslateDynamic === false
+          ? `${Math.max(0, total - done)} new segments waiting. Enable automatic translation or click Translate.`
+          : 'New content detected. Preparing translation…');
+      }
     }
   }
 
@@ -527,24 +634,58 @@
     }, { passive: true });
   }
 
+  function endPageSession(statusText = '', { revert = false } = {}) {
+    stopObserver();
+    sessionActive = false;
+    runId = null;
+    runPaused = false;
+    state.keepAlive?.close?.();
+    if (revert) mutateWithoutObservation(() => renderer.revertAll());
+    ui?.setProgress(0, 0);
+    ui?.setTranslating(false);
+    if (statusText) ui?.setStatus(statusText);
+    lastSelection = null;
+    hideSelectionUi();
+  }
+
+  function handlePageContextChanged(reason = 'spa-navigate') {
+    const nextHref = location.href;
+    if (nextHref === lastPageHref) return;
+    const previousHref = sessionHref || lastPageHref;
+    const previousRunId = runId;
+    lastPageHref = nextHref;
+    sendMessage({
+      type: 'page-context-changed',
+      url: nextHref,
+      previousUrl: previousHref,
+      documentKey,
+      runId: previousRunId,
+      reason
+    }).catch(() => {});
+    endPageSession('Page changed. Translate again to continue.', { revert: true });
+    setTimeout(() => sendMessage({ type: 'ping', url: nextHref, documentKey }).catch(() => {}), 0);
+  }
+
   function installNavigationWatcher() {
     const check = () => {
-      const key = normalizePageKey(location.href);
-      if (key === lastPageKey) return;
-      const previous = lastPageKey;
-      lastPageKey = key;
-      sendMessage({ type: 'spa-navigate', url: location.href, key, previousKey: previous }).catch(() => {});
-      renderer.revertAll();
-      stopObserver();
-      runId = null;
-      ui?.setTranslating(false);
-      ui?.setStatus('Page changed. Translate again to continue.');
-      lastSelection = null;
-      hideSelectionUi();
+      if (location.href !== lastPageHref) handlePageContextChanged('spa-navigate');
     };
     window.addEventListener('popstate', check);
     window.addEventListener('hashchange', check);
-    navTimer = setInterval(check, 800);
+    window.navigation?.addEventListener?.('navigatesuccess', check);
+    navTimer = setInterval(check, 400);
+    window.addEventListener('pagehide', () => {
+      if (!sessionActive && !runId) return;
+      sendMessage({
+        type: 'page-context-changed',
+        url: location.href,
+        previousUrl: sessionHref,
+        documentKey,
+        runId,
+        reason: 'pagehide'
+      }).catch(() => {});
+      endPageSession('', { revert: false });
+    }, { capture: true });
   }
 
   function installHoverIntent() {
@@ -583,6 +724,7 @@
     subscribeSettings((next) => {
       settings = next;
       renderer.mode = next.translation.renderMode;
+      ui?.setAutoTranslateDynamic(next.translation.autoTranslateDynamic !== false);
       ui?.applyAppearance();
     });
     mark('lbt:content-boot-start');
@@ -598,35 +740,29 @@
         case 'segment-delivery': applyDelivery(message); break;
         case 'progress-update': progress(message); break;
         case 'run-cancel':
-          stopObserver();
-          runId = null;
-          runPaused = false;
-          ui?.setProgress(0, 0);
-          ui?.setTranslating(false);
-          ui?.setStatus('Translation stopped.');
-          state.keepAlive?.close?.();
+          if (message.runId && runId && message.runId !== runId) break;
+          endPageSession(message.reason === 'stop' ? 'Translation stopped.' : '', { revert: false });
           break;
         case 'run-revert':
-          stopObserver();
-          mutateWithoutObservation(() => renderer.revertAll());
-          runId = null;
-          runPaused = false;
-          ui?.setProgress(0, 0);
-          ui?.setTranslating(false);
-          ui?.setStatus('Original text restored.');
-          state.keepAlive?.close?.();
+          if (message.runId && runId && message.runId !== runId) break;
+          endPageSession('Original text restored.', { revert: true });
           break;
         case 'run-settled':
-          if (!settings.speed.prefetch.idleFill) stopObserver();
-          ui?.setTranslating(false);
+          if (message.runId && runId && message.runId !== runId) break;
+          if (sessionActive) ui?.setTranslating(false);
           break;
         case 'run-resume':
-          if (message.runId && runId !== message.runId) {
+          if (message.runId && runId && message.runId !== runId) break;
+          if (message.runId && (!message.documentKey || message.documentKey === documentKey)) {
             runId = message.runId;
+            lastRunId = message.runId;
             runUrl = message.url || location.href;
+            sessionHref = runUrl;
+            sessionActive = true;
+            runPaused = false;
             ui?.setTranslating(true);
             installMutationObserver();
-            extractAndReport(false).catch(() => {});
+            extractAndReport().catch(() => {});
           }
           break;
         case 'toggle-render-mode':
@@ -646,17 +782,19 @@
       }
     });
     try {
-      await sendMessage({ type: 'ping', sentAt: Date.now() });
+      await sendMessage({ type: 'ping', sentAt: Date.now(), url: location.href, documentKey });
       document.documentElement.setAttribute('data-lbt-background-alive', 'true');
     } catch { /* background may still be starting */ }
-    try { await sendMessage({ type: 'frame-hello' }); } catch { /* optional */ }
+    try { await sendMessage({ type: 'frame-hello', url: location.href, documentKey }); } catch { /* optional */ }
     mark('lbt:content-boot-end');
     try { performance.measure('lbt:content-boot', 'lbt:content-boot-start', 'lbt:content-boot-end'); } catch { /* noop */ }
   }
 
-  window.addEventListener('pagehide', (event) => { if (!event.persisted) state.keepAlive?.close?.(); });
   window.addEventListener('pageshow', (event) => {
-    if (event.persisted) sendMessage({ type: 'bfcache-restore', url: location.href, translated: Boolean(runId) }).catch(() => {});
+    if (!event.persisted) return;
+    lastPageHref = location.href;
+    sendMessage({ type: 'bfcache-restore', url: location.href, documentKey, translated: false }).catch(() => {});
+    setTimeout(() => sendMessage({ type: 'ping', url: location.href, documentKey }).catch(() => {}), 0);
   });
 
   boot().catch((error) => {

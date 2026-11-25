@@ -36,9 +36,20 @@ function runMapKey(tabId, url) {
 
 function getRun(tabId, url, runId = null) {
   if (runId) {
-    for (const run of state.runs.values()) if (run.runId === runId) return run;
+    for (const run of state.runs.values()) {
+      if (run.runId === runId && (tabId === undefined || run.tabId === tabId)) return run;
+    }
   }
   return state.runs.get(runMapKey(tabId, url)) ?? null;
+}
+
+function tabRuns(tabId) {
+  return [...state.runs.entries()].filter(([, run]) => run.tabId === tabId);
+}
+
+function activeRunForTab(tabId) {
+  const entries = tabRuns(tabId).sort((a, b) => Number(b[1].updatedAt || 0) - Number(a[1].updatedAt || 0));
+  return entries[0]?.[1] ?? null;
 }
 
 function frameKey(tabId, frameId) {
@@ -49,6 +60,40 @@ function framesForTab(tabId) {
   return [...(state.framesByTab.get(tabId) ?? [])];
 }
 
+function contentDocumentKey(sender, message) {
+  return String(message?.documentKey ?? sender?.documentId ?? '');
+}
+
+function clearAutoStartedForTab(tabId) {
+  const prefix = `${tabId}:`;
+  for (const key of state.autoStarted) if (key.startsWith(prefix)) state.autoStarted.delete(key);
+}
+
+function sameRunUrl(left, right) {
+  try {
+    return normalizeUrl(left, state.settings.cache.urlNormalisation) === normalizeUrl(right, state.settings.cache.urlNormalisation);
+  } catch {
+    return left === right;
+  }
+}
+
+async function invalidateTabRuns(tabId, reason = 'navigation') {
+  if (!Number.isInteger(tabId)) return 0;
+  clearAutoStartedForTab(tabId);
+  const entries = tabRuns(tabId);
+  for (const [, run] of entries) {
+    clearRunSettlement(run);
+    try { run.controller.abort(new DOMException(reason, 'AbortError')); } catch { /* noop */ }
+    run.state = 'idle';
+    await broadcastRun(run, { type: MESSAGE.RUN_CANCEL, runId: run.runId, url: run.url, reason }).catch(() => {});
+  }
+  for (const [key, run] of entries) {
+    if (state.runs.get(key) === run) state.runs.delete(key);
+  }
+  if (!tabRuns(tabId).length) state.framesByTab.delete(tabId);
+  return entries.length;
+}
+
 function rememberFrame(sender, message) {
   const tabId = sender?.tab?.id;
   if (tabId === undefined) return;
@@ -57,6 +102,7 @@ function rememberFrame(sender, message) {
   set.set(frameKey(tabId, frameId), {
     frameId,
     url: sender.url ?? message?.url ?? '',
+    documentKey: contentDocumentKey(sender, message),
     lastSeen: Date.now()
   });
   state.framesByTab.set(tabId, set);
@@ -89,7 +135,7 @@ function clearRunSettlement(run) {
 
 function runQueuesDrained(run) {
   for (const frame of run.frames.values()) {
-    if (frame.processing || frame.units.size) return false;
+    if (frame.processing || frame.pending.size) return false;
   }
   return true;
 }
@@ -111,7 +157,7 @@ function scheduleRunSettlement(run) {
       type: MESSAGE.RUN_SETTLED,
       runId: run.runId,
       url: run.url,
-      idleFill: Boolean(state.settings.speed.prefetch.idleFill)
+      autoTranslateDynamic: Boolean(state.settings.translation.autoTranslateDynamic)
     }).catch(() => {});
   }, 2500);
 }
@@ -122,8 +168,11 @@ function progressSummary(run) {
     state: run.state,
     done: run.done,
     total: run.total,
+    pending: Math.max(0, run.total - run.done),
     url: run.url,
     runId: run.runId,
+    origin: run.origin ?? (run.auto ? 'automatic' : 'manual'),
+    autoTranslateDynamic: Boolean(state.settings.translation.autoTranslateDynamic),
     notice: run.notice ?? null,
     cacheHitRate: run.total ? run.cacheHits / run.total : null,
     tokensPerSecond: null
@@ -142,29 +191,43 @@ function isEnabledForUrl(url) {
     || state.settings.behaviour.enabledSites.some((site) => domainMatches(domain, site));
 }
 
-async function maybeAutoStart(tabId, url) {
+async function maybeAutoStart(tabId, url, { documentKey = '' } = {}) {
   if (!url || !isEnabledForUrl(url)) return;
+  const existing = activeRunForTab(tabId);
+  if (existing) {
+    if (documentKey && existing.documentKey && existing.documentKey !== documentKey) {
+      await invalidateTabRuns(tabId, 'stale-document');
+    } else {
+      return;
+    }
+  }
   const stateInfo = buildSiteState(state.settings, url, await hasSitePermission(url));
   if (!stateInfo.autoTranslateAllowed) return;
+  const afterPermission = activeRunForTab(tabId);
+  if (afterPermission) return;
   const key = runMapKey(tabId, url);
   if (state.autoStarted.has(key) || state.runs.has(key)) return;
   state.autoStarted.add(key);
-  await startRun(tabId, url, { profileRole: 'primary', auto: true });
+  await startRun(tabId, url, { profileRole: 'primary', auto: true, documentKey });
 }
 
-async function startRun(tabId, url, { profileRole = 'primary', auto = false } = {}) {
+async function startRun(tabId, url, { profileRole = 'primary', auto = false, documentKey = '' } = {}) {
   const key = runMapKey(tabId, url);
   const existing = state.runs.get(key);
   if (existing && !['idle', 'complete', 'error', 'paused'].includes(existing.state)) return progressSummary(existing);
+  if (tabRuns(tabId).length) await invalidateTabRuns(tabId, 'run-replaced');
   const run = {
     runId: createRunId(),
     tabId,
     url,
+    documentKey: documentKey || '',
     profileRole,
     auto,
+    origin: auto ? 'automatic' : 'manual',
     state: 'translating',
     done: 0,
     total: 0,
+    pending: 0,
     cacheHits: 0,
     startedAt: Date.now(),
     updatedAt: Date.now(),
@@ -174,29 +237,53 @@ async function startRun(tabId, url, { profileRole = 'primary', auto = false } = 
     notice: null
   };
   state.runs.set(key, run);
-  await broadcastRun(run, { type: MESSAGE.RUN_BEGIN, url, runId: run.runId, profileRole });
+  await broadcastRun(run, { type: MESSAGE.RUN_BEGIN, url, runId: run.runId, profileRole, documentKey: run.documentKey });
+  scheduleRunPriming(run);
   sendProgress(run);
   return progressSummary(run);
 }
 
-async function stopRun(tabId, url, reason = 'stop') {
-  const run = getRun(tabId, url);
+function scheduleRunPriming(run) {
+  run.primeTimers = [250, 1000].map((delay) => setTimeout(() => {
+    if (!run || run.state !== 'translating' || run.controller.signal.aborted) return;
+    broadcastRun(run, {
+      type: MESSAGE.RUN_RESUME,
+      url: run.url,
+      runId: run.runId,
+      documentKey: run.documentKey,
+      profileRole: run.profileRole
+    }).catch(() => {});
+  }, delay));
+}
+
+async function stopRun(tabId, url, reason = 'stop', runId = null) {
+  const run = getRun(tabId, url, runId);
   if (!run) return { ok: true, state: 'idle' };
   clearRunSettlement(run);
   try { run.controller.abort(new DOMException(reason, 'AbortError')); } catch { /* noop */ }
   run.state = 'idle';
-  await broadcastRun(run, { type: MESSAGE.RUN_CANCEL, runId: run.runId, url: run.url, reason });
-  state.runs.delete(runMapKey(tabId, url));
+  await broadcastRun(run, { type: MESSAGE.RUN_CANCEL, runId: run.runId, url: run.url, reason }).catch(() => {});
+  const key = runMapKey(tabId, run.url);
+  if (state.runs.get(key) === run) state.runs.delete(key);
+  if (!tabRuns(tabId).length) {
+    state.framesByTab.delete(tabId);
+    state.autoStarted.delete(key);
+  }
   return { ok: true, state: 'idle' };
 }
 
-async function revertRun(tabId, url) {
-  const run = getRun(tabId, url);
+async function revertRun(tabId, url, runId = null) {
+  const run = getRun(tabId, url, runId);
   if (run) {
     clearRunSettlement(run);
     try { run.controller.abort(new DOMException('revert', 'AbortError')); } catch { /* noop */ }
     await broadcastRun(run, { type: MESSAGE.RUN_REVERT, runId: run.runId, url: run.url });
-    state.runs.delete(runMapKey(tabId, url));
+    const key = runMapKey(tabId, run.url);
+    if (state.runs.get(key) === run) state.runs.delete(key);
+    if (!tabRuns(tabId).length) {
+      state.framesByTab.delete(tabId);
+      state.autoStarted.delete(key);
+    }
   }
   return { ok: true, state: 'idle' };
 }
@@ -243,6 +330,169 @@ async function lookupTmForQueries(url, queries) {
   });
 }
 
+function recalculateRunProgress(run) {
+  run.total = 0;
+  run.done = 0;
+  for (const frame of run.frames.values()) {
+    for (const unitId of frame.current.keys()) {
+      run.total += 1;
+      if (frame.doneIds.has(unitId)) run.done += 1;
+    }
+  }
+  run.pending = Math.max(0, run.total - run.done);
+  if (run.done < run.cacheHits) run.cacheHits = run.done;
+}
+
+function queueFrameUnits(run, frameState, { force = false } = {}) {
+  if (!force && !state.settings.translation.autoTranslateDynamic) return 0;
+  let queued = 0;
+  for (const [unitId, unit] of frameState.current) {
+    if (frameState.doneIds.has(unitId) || frameState.pending.has(unitId)) continue;
+    frameState.pending.set(unitId, unit);
+    queued += 1;
+  }
+  return queued;
+}
+
+function replayUnacknowledgedSegments(run, frameState) {
+  const segments = [];
+  for (const unitId of frameState.current.keys()) {
+    if (!frameState.doneIds.has(unitId) || frameState.acknowledged.has(unitId)) continue;
+    const segment = frameState.segments.get(unitId);
+    if (segment) segments.push(segment);
+  }
+  if (!segments.length) return 0;
+  sendToFrame(run.tabId, frameState.frameId, {
+    type: MESSAGE.SEGMENT_DELIVERY,
+    runId: run.runId,
+    documentKey: frameState.documentKey,
+    segments
+  }).catch(() => {});
+  return segments.length;
+}
+
+async function processFrameQueue(run, frameState) {
+  if (!run || !frameState || frameState.processing) return;
+  if (run.state !== 'translating' || run.controller.signal.aborted) return;
+  frameState.processing = true;
+  try {
+    while (frameState.pending.size) {
+      if (run.state !== 'translating' || run.controller.signal.aborted) break;
+      const batch = [...frameState.pending.values()];
+      const batchById = new Map(batch.map((unit) => [unit.id, unit]));
+      frameState.pending.clear();
+      await state.translator.translateUnits(batch, {
+        url: run.url,
+        domain: domainFromUrl(run.url),
+        targetLang: resolveSiteTargetLang(state.settings, domainFromUrl(run.url)),
+        profileRole: run.profileRole,
+        signal: run.controller.signal,
+        onSegment: (segment) => {
+          if (run.state !== 'translating' || run.controller.signal.aborted) return;
+          const current = frameState.current.get(segment.unitId);
+          const requested = batchById.get(segment.unitId);
+          if (!current || !requested || current.text !== requested.text || current.kind !== requested.kind) return;
+          if (!frameState.doneIds.has(segment.unitId)) {
+            frameState.doneIds.add(segment.unitId);
+            run.done += 1;
+            run.pending = Math.max(0, run.total - run.done);
+            if (segment.hit) run.cacheHits += 1;
+          }
+          const payload = { unitId: segment.unitId, text: segment.text, kind: segment.kind ?? 'text', hit: Boolean(segment.hit), attribute: segment.attribute ?? null };
+          frameState.segments.set(segment.unitId, payload);
+          sendToFrame(run.tabId, frameState.frameId, {
+            type: MESSAGE.SEGMENT_DELIVERY,
+            runId: run.runId,
+            documentKey: frameState.documentKey,
+            segments: [payload]
+          }).catch(() => {});
+          sendProgress(run);
+        },
+        onProgress: () => { if (run.state === 'translating') sendProgress(run); }
+      });
+      await savePageSnapshot(run.url, batch);
+    }
+  } catch (error) {
+    if (!run.controller.signal.aborted) {
+      state.translator.logError(error);
+      run.state = 'error';
+      run.notice = { severity: 'error', message: errorMessage(error) };
+      sendProgress(run);
+    }
+  } finally {
+    frameState.processing = false;
+    run.updatedAt = Date.now();
+    if (run.state === 'translating') scheduleRunSettlement(run);
+  }
+}
+
+async function resumeDynamicRun(run) {
+  if (!run || run.controller.signal.aborted || ['error', 'paused'].includes(run.state)) return 0;
+  let queued = 0;
+  for (const frameState of run.frames.values()) queued += queueFrameUnits(run, frameState, { force: true });
+  recalculateRunProgress(run);
+  if (queued > 0 && run.state !== 'translating') {
+    run.state = 'translating';
+    run.notice = null;
+    sendProgress(run);
+    for (const frameState of run.frames.values()) processFrameQueue(run, frameState).catch(() => {});
+  } else {
+    sendProgress(run);
+  }
+  return queued;
+}
+
+async function updateAutoTranslateDynamic(tabId, value) {
+  state.settings = await saveSettings({
+    ...state.settings,
+    translation: { ...state.settings.translation, autoTranslateDynamic: Boolean(value) }
+  });
+  const runs = tabRuns(tabId).map(([, run]) => run);
+  if (value) {
+    for (const run of runs) await resumeDynamicRun(run);
+  } else {
+    for (const run of runs) sendProgress(run);
+  }
+  return state.settings.translation.autoTranslateDynamic;
+}
+
+async function validateRunDocument(run, sender, message) {
+  const frameId = sender?.frameId ?? 0;
+  if (frameId !== 0) return true;
+  const documentKey = contentDocumentKey(sender, message);
+  if (!run.documentKey && documentKey) run.documentKey = documentKey;
+  if (run.documentKey && documentKey && run.documentKey !== documentKey) {
+    await invalidateTabRuns(run.tabId, 'stale-document');
+    return false;
+  }
+  const currentUrl = sender?.url ?? sender?.tab?.url ?? message.url;
+  if (currentUrl && !sameRunUrl(run.url, currentUrl)) {
+    await invalidateTabRuns(run.tabId, 'page-context-changed');
+    return false;
+  }
+  return true;
+}
+
+async function handleSegmentApplied(message, sender) {
+  const tabId = sender?.tab?.id;
+  if (tabId === undefined) return { ok: false, error: 'No tab sender' };
+  const run = getRun(tabId, message.url, message.runId);
+  if (!run || run.runId !== message.runId) return { ok: false, error: 'Run is not active' };
+  if (!await validateRunDocument(run, sender, message)) return { ok: false, error: 'Stale page context' };
+  const frameId = sender.frameId ?? 0;
+  const frameState = run.frames.get(frameKey(tabId, frameId));
+  if (!frameState) return { ok: true, acknowledged: 0 };
+  const documentKey = contentDocumentKey(sender, message);
+  if (frameState.documentKey && documentKey && frameState.documentKey !== documentKey) return { ok: false, error: 'Stale frame context' };
+  let acknowledged = 0;
+  for (const unitId of message.unitIds) {
+    if (!frameState.current.has(unitId) || !frameState.segments.has(unitId)) continue;
+    frameState.acknowledged.add(unitId);
+    acknowledged += 1;
+  }
+  return { ok: true, acknowledged };
+}
+
 async function handleUnitsReport(message, sender) {
   const tabId = sender?.tab?.id;
   if (tabId === undefined) return { ok: false, error: 'No tab sender' };
@@ -256,77 +506,81 @@ async function handleUnitsReport(message, sender) {
   }
   const run = getRun(tabId, message.url, message.runId);
   if (!run || run.runId !== message.runId) return { ok: false, error: 'Run is not active' };
+  if (!await validateRunDocument(run, sender, message)) return { ok: false, error: 'Stale page context' };
   clearRunSettlement(run);
-  if (run.state === 'complete' && !run.controller.signal.aborted) {
-    run.state = 'translating';
-    run.notice = null;
-    sendProgress(run);
-  }
-  if (run.state !== 'translating' || run.controller.signal.aborted) return { ok: false, error: 'Run is not active' };
+
   const frameId = sender.frameId ?? 0;
+  const documentKey = contentDocumentKey(sender, message);
   const key = frameKey(tabId, frameId);
   let frameState = run.frames.get(key);
+  if (frameState?.documentKey && documentKey && frameState.documentKey !== documentKey) frameState = null;
   if (!frameState) {
-    frameState = { frameId, units: new Map(), seen: new Set(), processing: false, done: 0, total: 0 };
+    frameState = {
+      frameId,
+      documentKey,
+      current: new Map(),
+      pending: new Map(),
+      doneIds: new Set(),
+      segments: new Map(),
+      acknowledged: new Set(),
+      processing: false,
+      initialized: false,
+      inventoryRevision: -1,
+      lastSnapshotAt: Date.now()
+    };
     run.frames.set(key, frameState);
   }
-  for (const unit of message.units) {
-    if (!unit || typeof unit.id !== 'string' || typeof unit.text !== 'string') continue;
-    if (!frameState.seen.has(unit.id)) {
-      frameState.seen.add(unit.id);
-      frameState.units.set(unit.id, unit);
-      frameState.total += 1;
-      run.total += 1;
+  if (Number.isInteger(message.inventoryRevision) && message.inventoryRevision < frameState.inventoryRevision) {
+    return { ok: true, staleSnapshot: true };
+  }
+  if (Number.isInteger(message.inventoryRevision)) frameState.inventoryRevision = message.inventoryRevision;
+  const firstSnapshot = !frameState.initialized;
+  const snapshot = message.snapshot === true;
+  if (snapshot) {
+    const next = new Map();
+    for (const unit of message.units) {
+      if (!unit || typeof unit.id !== 'string' || typeof unit.text !== 'string') continue;
+      next.set(unit.id, unit);
+      const previous = frameState.current.get(unit.id);
+      if (previous && (previous.text !== unit.text || previous.kind !== unit.kind)) {
+        frameState.doneIds.delete(unit.id);
+        frameState.pending.delete(unit.id);
+        frameState.segments.delete(unit.id);
+        frameState.acknowledged.delete(unit.id);
+      }
+    }
+    frameState.current = next;
+    for (const unitId of frameState.pending.keys()) if (!next.has(unitId)) frameState.pending.delete(unitId);
+  } else {
+    for (const unit of message.units) {
+      if (!unit || typeof unit.id !== 'string' || typeof unit.text !== 'string') continue;
+      const previous = frameState.current.get(unit.id);
+      if (previous && (previous.text !== unit.text || previous.kind !== unit.kind)) {
+        frameState.doneIds.delete(unit.id);
+        frameState.pending.delete(unit.id);
+        frameState.segments.delete(unit.id);
+        frameState.acknowledged.delete(unit.id);
+      }
+      frameState.current.set(unit.id, unit);
     }
   }
-  if (frameState.processing) return { ok: true, queued: true };
-  frameState.processing = true;
-  try {
-    while (frameState.units.size) {
-      if (run.state !== 'translating' || run.controller.signal.aborted) break;
-      const batch = [...frameState.units.values()];
-      frameState.units.clear();
-      await state.translator.translateUnits(batch, {
-        url: run.url,
-        domain: domainFromUrl(run.url),
-        targetLang: resolveSiteTargetLang(state.settings, domainFromUrl(run.url)),
-        profileRole: run.profileRole,
-        signal: run.controller.signal,
-        onSegment: (segment) => {
-          if (run.state !== 'translating' || !frameState.seen.has(segment.unitId)) return;
-          const unitId = segment.unitId;
-          if (!run.doneIds) run.doneIds = new Set();
-          if (!run.doneIds.has(unitId)) {
-            run.doneIds.add(unitId);
-            run.done += 1;
-            frameState.done += 1;
-            if (segment.hit) run.cacheHits += 1;
-          }
-          sendToFrame(tabId, frameId, {
-            type: MESSAGE.SEGMENT_DELIVERY,
-            runId: run.runId,
-            segments: [{ unitId, text: segment.text, kind: segment.kind ?? 'text', hit: Boolean(segment.hit), attribute: segment.attribute ?? null }]
-          }).catch(() => {});
-          sendProgress(run);
-        },
-        onProgress: () => { if (run.state === 'translating') sendProgress(run); }
-      });
-      await savePageSnapshot(run.url, batch);
-    }
-    if (run.state === 'translating') return { ok: true, queued: false };
-    return { ok: true, paused: true };
-  } catch (error) {
-    if (run.controller.signal.aborted) return { ok: false, error: 'aborted' };
-    state.translator.logError(error);
-    run.state = 'error';
-    run.notice = { severity: 'error', message: errorMessage(error) };
-    sendProgress(run);
-    return { ok: false, error: errorMessage(error) };
-  } finally {
-    frameState.processing = false;
-    run.updatedAt = Date.now();
-    if (run.state === 'translating') scheduleRunSettlement(run);
+  frameState.initialized = true;
+  frameState.lastSnapshotAt = Date.now();
+  replayUnacknowledgedSegments(run, frameState);
+  queueFrameUnits(run, frameState, { force: firstSnapshot });
+  recalculateRunProgress(run);
+
+  if (run.state === 'complete' && state.settings.translation.autoTranslateDynamic && run.pending > 0) {
+    run.state = 'translating';
+    run.notice = null;
   }
+  sendProgress(run);
+  if (run.state !== 'translating' || run.controller.signal.aborted) {
+    return { ok: true, queued: false, pending: run.pending };
+  }
+  await processFrameQueue(run, frameState);
+  if (run.state === 'translating' && runQueuesDrained(run)) scheduleRunSettlement(run);
+  return { ok: true, queued: frameState.pending.size > 0, pending: run.pending };
 }
 
 async function handleSelection(message, sender) {
@@ -452,11 +706,15 @@ async function handleHardReset() {
 
 async function handleMessage(message, sender) {
   const tabId = sender?.tab?.id;
-  const senderUrl = sender?.tab?.url ?? message?.url ?? '';
+  const senderUrl = message?.url || sender?.url || sender?.tab?.url || '';
   switch (message.type) {
     case MESSAGE.PING:
       if (tabId !== undefined && senderUrl) {
-        await maybeAutoStart(tabId, senderUrl).catch(() => {});
+        const existing = activeRunForTab(tabId);
+        if (existing?.documentKey && message.documentKey && existing.documentKey !== message.documentKey) {
+          await invalidateTabRuns(tabId, 'stale-document');
+        }
+        await maybeAutoStart(tabId, senderUrl, { documentKey: message.documentKey }).catch(() => {});
       }
       return { type: MESSAGE.PONG, receivedAt: Date.now() };
 
@@ -470,14 +728,14 @@ async function handleMessage(message, sender) {
       if (!isEnabledForUrl(targetUrl)) return { ok: false, error: 'This site is not enabled. Enable it in the popup first.' };
       const pattern = hostPatternForUrl(targetUrl);
       if (pattern) await injectIntoOpenTabs(pattern, true);
-      return startRun(targetTabId, targetUrl, { profileRole: message.profileRole ?? 'primary' });
+      return startRun(targetTabId, targetUrl, { profileRole: message.profileRole ?? 'primary', documentKey: message.documentKey ?? '' });
     }
 
     case MESSAGE.STOP:
-      return stopRun(await resolveMessageTabId(message, sender), message.url);
+      return stopRun(await resolveMessageTabId(message, sender), message.url, 'stop', message.runId ?? null);
 
     case MESSAGE.REVERT:
-      return revertRun(await resolveMessageTabId(message, sender), message.url);
+      return revertRun(await resolveMessageTabId(message, sender), message.url, message.runId ?? null);
 
     case MESSAGE.GET_PROGRESS: {
       const run = getRun(await resolveMessageTabId(message, sender), message.url);
@@ -496,14 +754,23 @@ async function handleMessage(message, sender) {
     case MESSAGE.FRAME_HELLO: {
       rememberFrame(sender, message);
       const frameId = sender?.frameId ?? 0;
-      const run = tabId === undefined ? null : getRun(tabId, senderUrl);
-      if (run?.state === 'translating') {
-        sendToFrame(tabId, frameId, {
-          type: MESSAGE.RUN_RESUME,
-          url: run.url,
-          runId: run.runId,
-          profileRole: run.profileRole
-        }).catch(() => {});
+      const run = tabId === undefined ? null : activeRunForTab(tabId);
+      if (run) {
+        const documentKey = contentDocumentKey(sender, message);
+        if (frameId === 0 && run.documentKey && documentKey && run.documentKey !== documentKey) {
+          await invalidateTabRuns(tabId, 'stale-document');
+          return { ok: false, error: 'Document changed' };
+        }
+        if (frameId === 0 && !run.documentKey && documentKey) run.documentKey = documentKey;
+        if (run.state === 'translating' || (run.state === 'complete' && state.settings.translation.autoTranslateDynamic)) {
+          sendToFrame(tabId, frameId, {
+            type: MESSAGE.RUN_RESUME,
+            url: run.url,
+            runId: run.runId,
+            documentKey: run.documentKey,
+            profileRole: run.profileRole
+          }).catch(() => {});
+        }
       }
       return { ok: true };
     }
@@ -511,16 +778,20 @@ async function handleMessage(message, sender) {
     case MESSAGE.UNITS_REPORT:
       return handleUnitsReport(message, sender);
 
+    case MESSAGE.SEGMENT_APPLIED:
+      return handleSegmentApplied(message, sender);
+
     case MESSAGE.SELECTION_REQUEST:
       return handleSelection(message, sender);
 
     case MESSAGE.SPA_NAVIGATE:
-      if (tabId !== undefined) await stopRun(tabId, message.url, 'spa-navigate');
-      state.autoStarted.delete(runMapKey(tabId, message.url));
+    case MESSAGE.PAGE_CONTEXT_CHANGED:
+      if (tabId !== undefined) await invalidateTabRuns(tabId, message.reason || 'spa-navigate');
       return { ok: true };
 
     case MESSAGE.BFCACHE_RESTORE:
-      return { ok: true, translated: Boolean(getRun(tabId, message.url)) };
+      if (tabId !== undefined) await invalidateTabRuns(tabId, 'bfcache-restore');
+      return { ok: true, translated: false };
 
     case MESSAGE.RUN_PAUSED: {
       const run = getRun(tabId, message.url, message.runId);
@@ -629,10 +900,20 @@ async function handleMessage(message, sender) {
     case MESSAGE.DIAGNOSTICS_REQUEST:
       return handleDiagnostics();
 
-    case MESSAGE.SAVE_SETTINGS:
+    case MESSAGE.SET_AUTO_TRANSLATE_DYNAMIC: {
+      const value = await updateAutoTranslateDynamic(tabId, message.value);
+      return { ok: true, value };
+    }
+
+    case MESSAGE.SAVE_SETTINGS: {
+      const previousDynamic = state.settings.translation.autoTranslateDynamic;
       state.settings = await saveSettings(message.settings);
       await syncSiteScripts(state.settings.behaviour);
+      if (!previousDynamic && state.settings.translation.autoTranslateDynamic) {
+        for (const [, run] of [...state.runs.entries()]) await resumeDynamicRun(run);
+      }
       return { ok: true, settings: state.settings };
+    }
 
     case MESSAGE.LOAD_SETTINGS:
       return { ok: true, settings: state.settings };
@@ -768,22 +1049,28 @@ onCommand((command) => {
 });
 
 onTabUpdated((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'loading' || changeInfo.url) {
-    state.autoStarted.delete(runMapKey(tabId, changeInfo.url ?? tab.url ?? ''));
-    const run = state.runs.get(runMapKey(tabId, tab?.url ?? ''));
-    if (run) clearRunSettlement(run);
-    state.runs.delete(runMapKey(tabId, tab?.url ?? ''));
-  }
+  const navigationStarted = changeInfo.status === 'loading' || Boolean(changeInfo.url);
+  if (!navigationStarted) return;
+  ready.then(async () => {
+    if (changeInfo.status === 'loading') {
+      await invalidateTabRuns(tabId, 'tab-reload');
+      return;
+    }
+    const eventUrl = changeInfo.url ?? tab?.url ?? '';
+    const runs = tabRuns(tabId);
+    if (!runs.length) {
+      clearAutoStartedForTab(tabId);
+      return;
+    }
+    if (eventUrl && runs.every(([, run]) => sameRunUrl(run.url, eventUrl))) return;
+    await invalidateTabRuns(tabId, 'tab-navigation');
+  }).catch(() => {});
 });
 
 onTabRemoved((tabId) => {
-  state.framesByTab.delete(tabId);
-  for (const [key, run] of state.runs) {
-    if (run.tabId !== tabId) continue;
-    clearRunSettlement(run);
-    try { run.controller.abort(); } catch { /* noop */ }
-    state.runs.delete(key);
-  }
+  ready.then(() => invalidateTabRuns(tabId, 'tab-removed')).catch(() => {
+    state.framesByTab.delete(tabId);
+  });
 });
 
 onTabActivated(({ tabId }) => {
