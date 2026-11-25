@@ -68,17 +68,70 @@ export async function storageClear() {
   await callChromeApi(storage.local.clear, storage.local);
 }
 
-export function sendRuntimeMessage(message) {
-  return callChromeApi(runtime.sendMessage, runtime, message);
+export function sendRuntimeMessage(message, timeoutMs) {
+  const request = callChromeApi(runtime.sendMessage, runtime, message);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return request;
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Extension message timed out after ${timeoutMs} ms.`));
+    }, timeoutMs);
+    request.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
-export function connectRuntime(name) {
-  return runtime.connect({ name });
+export function reportClientError(source, value, details = {}) {
+  const error = value instanceof Error ? value : new Error(String(value ?? 'Unknown error'));
+  const pageUrl = typeof globalThis.location?.href === 'string' ? globalThis.location.href : '';
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  return sendRuntimeMessage({
+    type: 'client-error',
+    source,
+    level: 'error',
+    message: error.message,
+    stack: error.stack || '',
+    url: pageUrl,
+    userAgent,
+    details
+  }).catch(() => {});
 }
 
-export function openOptionsPage() {
+export function openOptionsPage(section) {
+  const normalizedSection = typeof section === 'string' ? section.trim().replace(/^#/, '') : '';
+  if (normalizedSection && /^[a-z0-9_-]+$/i.test(normalizedSection)) {
+    return tabs.create({ url: runtime.getURL(`src/ui/options/index.html#${normalizedSection}`) });
+  }
   if (runtime.openOptionsPage) return runtime.openOptionsPage();
   return tabs.create({ url: runtime.getURL('src/ui/options/index.html') });
+}
+
+export function getUILanguage() {
+  try {
+    const value = extension?.i18n?.getUILanguage?.();
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  } catch {
+    // Extension i18n is unavailable in some content-script contexts.
+  }
+
+  if (typeof navigator !== 'undefined') {
+    if (Array.isArray(navigator.languages)) {
+      const language = navigator.languages.find((value) => typeof value === 'string' && value.trim());
+      if (language) return language.trim();
+    }
+    if (typeof navigator.language === 'string' && navigator.language.trim()) {
+      return navigator.language.trim();
+    }
+  }
+  return 'en';
 }
 
 export function onRuntimeMessage(handler) {
@@ -109,12 +162,6 @@ export function onRuntimeMessage(handler) {
   };
   runtime.onMessage.addListener(listener);
   return () => runtime.onMessage.removeListener(listener);
-}
-
-export function onRuntimeConnect(handler) {
-  const listener = (port) => handler(port);
-  runtime.onConnect.addListener(listener);
-  return () => runtime.onConnect.removeListener(listener);
 }
 
 export function onStorageChanged(handler) {

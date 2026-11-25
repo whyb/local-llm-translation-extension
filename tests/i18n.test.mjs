@@ -213,6 +213,10 @@ async function staticSourceKeys() {
   const sectionMeta = findAssignedObjectBody(optionsSource, 'SECTION_META');
   if (sectionMeta) for (const key of objectStringValues(sectionMeta)) keys.add(key);
 
+  const contentSource = await readFile(path.join(root, 'src/content/main.js'), 'utf8');
+  const panelKeysMatch = contentSource.match(/const PANEL_TRANSLATION_KEYS = Object\.freeze\(\[([\s\S]*?)\]\);/);
+  if (panelKeysMatch) for (const key of stringLiterals(panelKeysMatch[1])) keys.add(key);
+
   const promptSource = files.find((file) => file.name === 'prompt-editor.js')?.source ?? '';
   const modeCopy = findAssignedObjectBody(promptSource, 'MODE_COPY');
   if (modeCopy) {

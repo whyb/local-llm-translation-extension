@@ -33,18 +33,6 @@
     "open_in_tab": true
   },
   "commands": {
-    "translate-page": {
-      "suggested_key": {
-        "default": "Alt+Shift+T"
-      },
-      "description": "Translate this page"
-    },
-    "revert-page": {
-      "suggested_key": {
-        "default": "Alt+Shift+R"
-      },
-      "description": "Revert this page to its original text"
-    },
     "translate-selection": {
       "suggested_key": {
         "default": "Alt+Shift+S"

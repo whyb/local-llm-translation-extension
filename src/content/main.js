@@ -3,11 +3,12 @@
   'use strict';
   const LBT = globalThis.LBT;
   if (!LBT) return;
-  const { api, state, Renderer, sendMessage, getSettings, subscribeSettings, mark, debugLog } = LBT;
+  const { api, state, Renderer, createDeliveryScheduler, sendMessage, getSettings, subscribeSettings, mark } = LBT;
   const renderer = new Renderer();
   const documentKey = typeof crypto?.randomUUID === 'function'
     ? crypto.randomUUID()
     : `doc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  state.documentKey = documentKey;
   let settings = state.settings;
   let runId = null;
   let lastRunId = null;
@@ -25,11 +26,101 @@
   let selectionRequestId = null;
   let runPaused = false;
   let ui = null;
+  let extractionRoots = new Set();
+  let panelTranslations = Object.freeze({});
+  let panelUiLocale = 'en';
+  let panelRequestedLocale = 'en';
+  let panelTranslationRequest = 0;
+
+  const GITHUB_URL = 'https://github.com/whyb/local-llm-translation-extension';
+  const PANEL_TRANSLATION_KEYS = Object.freeze([
+    'private by design',
+    'Open settings',
+    'CURRENT PAGE',
+    'Current page',
+    'Ready',
+    '{done} done',
+    '{total} total',
+    '{percent}%',
+    '{percent}% cache',
+    '— cache',
+    'Translate page',
+    'Stop',
+    'Revert',
+    'TRANSLATE MODE',
+    'What should happen on this site?',
+    'All sites allowed',
+    'Automatic',
+    'Ask me',
+    'Never',
+    'Site translation mode',
+    'Every allowed page translates automatically. You can still stop or revert it.',
+    'Automatic applies only to sites you enable one by one.',
+    'This site is blocked. Nothing will be read or sent.',
+    'Manual mode never sends text until you press Translate.',
+    'Advanced site rules →',
+    'Site access required',
+    'Allow access to all websites once. Nothing is read or changed until you allow it.',
+    'Allow all sites',
+    'GitHub',
+    'Local LLM Translator Pro — {done}/{total} ({percent}%)',
+    'Local LLM Translator Pro — translating',
+    'Starting translation…',
+    'Could not reach the translation service: {error}',
+    'Translation stopped.',
+    'Original text restored.',
+    'Site translation mode updated.',
+    'Could not update site mode.',
+    'Could not update site mode: {error}',
+    'Translation failed.',
+    'Translation paused.',
+    'Display: {mode}',
+    'Paused: too many page mutations.',
+    'Applying translations to the page… {done} / {translated}',
+    'Translating {pending} new or remaining segments…',
+    'Translating page…',
+    'Translation complete.',
+    '{count} new segments waiting. Enable automatic translation or click Translate.',
+    'New content detected. Preparing translation…',
+    'Translate selection',
+    'Translating…',
+    'Translated',
+    'Selection translation failed.',
+    'Selection',
+    'Copy',
+    'Copied',
+    'Replace selection',
+    'Close'
+  ]);
+
+  const deliveryScheduler = createDeliveryScheduler({
+    applySegment: (segment) => mutateWithoutObservation(() => renderer.apply(segment.unitId, segment.text)),
+    onAck: (unitIds) => acknowledgeSegments(unitIds),
+    isActive: () => Boolean(runId && sessionActive && !runPaused && location.href === sessionHref),
+    onFirstApplied: () => mark('lbt:first-segment-committed')
+  });
 
   const SHADOW_CSS = `
-    :host { all: initial; }
+    :host {
+      all: initial;
+      color-scheme: light dark;
+      --lbt-bg: #f4f6fb;
+      --lbt-card: #ffffff;
+      --lbt-ink: #172033;
+      --lbt-muted: #6e7a91;
+      --lbt-line: #dfe5ef;
+      --lbt-accent: #2563eb;
+      --lbt-accent-2: #7c3aed;
+      --lbt-accent-soft: #edf2ff;
+      --lbt-danger: #b42318;
+      --lbt-success: #16835a;
+      --lbt-shadow: 0 18px 50px rgba(28,42,75,.14);
+    }
+    @media (prefers-color-scheme: dark) {
+      :host { --lbt-bg: #0c1220; --lbt-card: #151d2d; --lbt-ink: #f4f7ff; --lbt-muted: #9ba8c2; --lbt-line: #2a3650; --lbt-accent-soft: #17284a; --lbt-shadow: 0 18px 50px rgba(0,0,0,.34); }
+    }
     * { box-sizing: border-box; }
-    .lbt-floating { position: fixed; z-index: 2147483646; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; }
+    .lbt-floating { position: fixed; z-index: 2147483646; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--lbt-ink); }
     .lbt-floating[data-corner="top-left"] { left: 18px; top: 18px; align-items: flex-start; }
     .lbt-floating[data-corner="top-right"] { right: 18px; top: 18px; }
     .lbt-floating[data-corner="bottom-left"] { left: 18px; bottom: 18px; align-items: flex-start; }
@@ -45,21 +136,54 @@
     .lbt-fab:hover { transform: translateY(-1px); }
     @keyframes lbt-fab-ring-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .lbt-fab-shell[data-indeterminate="true"] { animation: none; } }
-    .lbt-panel { width: min(280px, calc(100vw - 36px)); border: 1px solid rgba(120,132,160,.25); border-radius: 18px; background: rgba(255,255,255,.94); box-shadow: 0 18px 55px rgba(15,23,42,.2); padding: 14px; backdrop-filter: blur(18px); }
-    .lbt-title { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-weight: 750; margin-bottom: 6px; }
-    .lbt-status { color: #61708b; font-size: 12px; min-height: 18px; margin-bottom: 12px; }
-    .lbt-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .lbt-actions button { border: 1px solid #d8deea; background: #fff; color: #24324a; border-radius: 10px; padding: 9px 10px; cursor: pointer; font: inherit; }
-    .lbt-actions button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
-    .lbt-actions button.danger { color: #b42318; }
-    .lbt-actions button:disabled { opacity: .45; cursor: default; }
-    .lbt-progress { height: 6px; background: #e9edf5; border-radius: 99px; overflow: hidden; margin-top: 10px; }
-    .lbt-progress > span { display: block; width: 0; height: 100%; background: linear-gradient(90deg,#2563eb,#7c3aed); transition: width .2s ease; }
-    .lbt-auto-dynamic { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 2px; border: 1px solid rgba(37,99,235,.2); border-radius: 10px; background: rgba(37,99,235,.07); padding: 9px 10px; color: #24324a; font-size: 12px; line-height: 1.35; cursor: pointer; }
-    .lbt-auto-dynamic input { flex: none; width: 15px; height: 15px; margin: 1px 0 0; accent-color: #2563eb; }
-    .lbt-auto-dynamic strong { display: block; font-size: 12px; }
-    .lbt-auto-dynamic small { display: block; margin-top: 2px; color: #61708b; font-size: 10px; }
-    .lbt-hud { position: fixed; z-index: 2147483645; left: 14px; bottom: 14px; background: rgba(15,23,42,.9); color: #fff; border-radius: 12px; padding: 8px 11px; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; box-shadow: 0 10px 28px rgba(0,0,0,.24); white-space: pre; }
+    .lbt-panel { width: min(360px, calc(100vw - 36px)); max-height: min(760px, calc(100vh - 36px)); overflow: auto; display: grid; gap: 11px; border: 1px solid var(--lbt-line); border-radius: 20px; background: var(--lbt-card); box-shadow: var(--lbt-shadow); padding: 14px; backdrop-filter: blur(18px); }
+    .lbt-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .lbt-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .lbt-brand-mark { flex: none; width: 38px; height: 38px; display: block; border-radius: 12px; object-fit: cover; box-shadow: 0 12px 30px rgba(37,99,235,.32); }
+    .lbt-brand-copy { display: grid; gap: 2px; min-width: 0; }
+    .lbt-brand-copy strong { font-size: 13px; letter-spacing: -.01em; }
+    .lbt-brand-copy span { color: var(--lbt-muted); font-size: 11px; }
+    .lbt-icon-button { border: 1px solid var(--lbt-line); background: var(--lbt-card); color: var(--lbt-ink); width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 17px; }
+    .lbt-page-card, .lbt-card { border: 1px solid var(--lbt-line); border-radius: 16px; background: var(--lbt-card); box-shadow: none; padding: 13px; }
+    .lbt-page-card { display: grid; gap: 8px; background: radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--lbt-accent) 13%, transparent), transparent 52%), var(--lbt-card); }
+    .lbt-eyebrow { color: var(--lbt-muted); font-size: 10px; font-weight: 750; letter-spacing: .12em; }
+    .lbt-page-title { margin: 0; font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; }
+    .lbt-page-url { color: var(--lbt-muted); font-size: 11px; direction: ltr; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lbt-status-row { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 12px; }
+    .lbt-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lbt-muted); box-shadow: 0 0 0 4px color-mix(in srgb, var(--lbt-muted) 15%, transparent); }
+    .lbt-dot.translating { background: var(--lbt-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--lbt-accent) 18%, transparent); animation: lbt-pulse 1.4s infinite; }
+    .lbt-dot.complete { background: var(--lbt-success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--lbt-success) 18%, transparent); }
+    .lbt-dot.error { background: var(--lbt-danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--lbt-danger) 18%, transparent); }
+    @keyframes lbt-pulse { 50% { transform: scale(.72); opacity: .75; } }
+    .lbt-status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lbt-progress { height: 6px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--lbt-line) 70%, transparent); }
+    .lbt-progress > span { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--lbt-accent), var(--lbt-accent-2)); transition: width .25s ease; }
+    .lbt-stats { display: flex; gap: 12px; color: var(--lbt-muted); font-size: 11px; }
+    .lbt-stats strong { color: var(--lbt-ink); font-size: 12px; }
+    .lbt-actions { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 8px; }
+    .lbt-actions button, .lbt-mode-control button { border: 1px solid var(--lbt-line); border-radius: 11px; padding: 9px 10px; background: var(--lbt-card); color: var(--lbt-ink); cursor: pointer; font: inherit; font-weight: 650; }
+    .lbt-actions button:hover, .lbt-mode-control button:hover { border-color: color-mix(in srgb, var(--lbt-accent) 42%, var(--lbt-line)); }
+    .lbt-actions button.primary { color: #fff; border-color: transparent; background: linear-gradient(145deg, var(--lbt-accent), var(--lbt-accent-2)); box-shadow: 0 8px 20px color-mix(in srgb, var(--lbt-accent) 25%, transparent); }
+    .lbt-actions button.danger { color: var(--lbt-danger); }
+    .lbt-actions button:disabled { opacity: .45; cursor: default; box-shadow: none; }
+    .lbt-card { display: grid; gap: 10px; }
+    .lbt-row-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 9px; }
+    .lbt-card-title { display: grid; gap: 3px; }
+    .lbt-card-title h3 { margin: 0; font-size: 13px; line-height: 1.35; }
+    .lbt-mode-control { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; border-radius: 12px; background: color-mix(in srgb, var(--lbt-bg) 70%, var(--lbt-card)); padding: 5px; }
+    .lbt-mode-control button { padding: 8px 7px; border-color: transparent; background: transparent; font-size: 12px; }
+    .lbt-mode-control button.active { background: var(--lbt-card); border-color: var(--lbt-line); box-shadow: 0 3px 10px rgba(20,30,55,.08); }
+    .lbt-hint { margin: 0; color: var(--lbt-muted); font-size: 11px; line-height: 1.45; }
+    .lbt-pill { background: var(--lbt-accent-soft); color: var(--lbt-accent); border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 750; white-space: nowrap; }
+    .lbt-link-button { justify-self: start; border: 0; background: transparent; color: var(--lbt-accent); padding: 0; cursor: pointer; font: inherit; font-size: 11px; font-weight: 650; }
+    .lbt-permission-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid color-mix(in srgb, var(--lbt-accent) 35%, var(--lbt-line)); border-radius: 16px; background: color-mix(in srgb, var(--lbt-accent-soft) 62%, var(--lbt-card)); padding: 12px 13px; }
+    .lbt-permission-copy { display: grid; gap: 3px; min-width: 0; }
+    .lbt-permission-copy strong { font-size: 12px; line-height: 1.35; }
+    .lbt-permission-copy p { margin: 0; color: var(--lbt-muted); font-size: 11px; line-height: 1.4; }
+    .lbt-permission-card button { flex: none; border: 0; border-radius: 10px; padding: 8px 10px; color: #fff; background: linear-gradient(145deg, var(--lbt-accent), var(--lbt-accent-2)); cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .lbt-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--lbt-muted); font-size: 10px; }
+    .lbt-footer-link { color: var(--lbt-accent); text-decoration: none; font-weight: 650; }
+    .lbt-footer-link:hover { text-decoration: underline; }
     .lbt-sel-button, .lbt-sel-bubble { position: fixed; z-index: 2147483647; font: 13px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     .lbt-sel-button { border: 1px solid rgba(148,163,184,.5); background: #111827; color: white; border-radius: 999px; padding: 8px 12px; box-shadow: 0 10px 28px rgba(15,23,42,.28); cursor: pointer; }
     .lbt-sel-bubble { width: min(360px, calc(100vw - 28px)); background: #fff; color: #172033; border: 1px solid #d8deea; border-radius: 16px; box-shadow: 0 18px 50px rgba(15,23,42,.24); padding: 14px; }
@@ -75,6 +199,76 @@
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
+  }
+
+  function panelLocaleFromSettings(candidate = settings) {
+    const configured = candidate?.appearance?.uiLocale;
+    return typeof configured === 'string' && configured.trim() && configured.trim().toLowerCase() !== 'auto'
+      ? configured.trim()
+      : null;
+  }
+
+  function normalizePanelTranslations(response) {
+    const payload = response?.translations ?? response?.strings ?? response;
+    const output = Object.create(null);
+    if (Array.isArray(payload)) {
+      payload.forEach((item, index) => {
+        if (typeof item === 'string' && PANEL_TRANSLATION_KEYS[index]) output[PANEL_TRANSLATION_KEYS[index]] = item;
+        else if (item && typeof item === 'object') {
+          const key = item.key ?? item.source;
+          const value = item.translation ?? item.value ?? item.text;
+          if (typeof key === 'string' && typeof value === 'string') output[key] = value;
+        }
+      });
+      return output;
+    }
+    if (payload && typeof payload === 'object') {
+      for (const [key, value] of Object.entries(payload)) {
+        if (typeof value === 'string') output[key] = value;
+      }
+    }
+    return output;
+  }
+
+  async function refreshPanelTranslations(nextSettings = settings) {
+    const requestId = ++panelTranslationRequest;
+    const locale = panelLocaleFromSettings(nextSettings);
+    let resolvedLocale = locale;
+    let translations = Object.create(null);
+    try {
+      const response = await sendMessage({ type: 'ui-translations-request', locale, keys: [...PANEL_TRANSLATION_KEYS] });
+      if (response?.ok !== false) {
+        translations = normalizePanelTranslations(response);
+        if (typeof response?.locale === 'string' && response.locale.trim()) resolvedLocale = response.locale.trim();
+      }
+    } catch { /* English fallback is intentional when the background is unavailable. */ }
+    if (requestId !== panelTranslationRequest) return false;
+    panelTranslations = translations;
+    panelUiLocale = resolvedLocale;
+    panelRequestedLocale = locale;
+    return true;
+  }
+
+  function translatePanel(source, params = {}) {
+    const key = typeof source === 'string' ? source : String(source ?? '');
+    const values = params && typeof params === 'object' ? params : {};
+    const translated = typeof panelTranslations[key] === 'string' ? panelTranslations[key] : key;
+    return translated.replace(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g, (_match, name) => values[name] === null || values[name] === undefined ? '{' + name + '}' : String(values[name]));
+  }
+
+  function openOptions(section) {
+    const message = { type: 'open-options' };
+    if (section) message.section = section;
+    return sendMessage(message).catch(() => {});
+  }
+
+  function isPermissionError(value) {
+    if (!value) return false;
+    if (value.permissionRequired === true || value.code === 'permission-required') return true;
+    const text = typeof value === 'string'
+      ? value
+      : String(value.error ?? value.message ?? '');
+    return /website access is required|allow all sites|site access required/i.test(text);
   }
 
   function shadowHost(attribute) {
@@ -95,19 +289,6 @@
     return { host, shadow };
   }
 
-  function setAutoTranslatePreference(value) {
-    const enabled = Boolean(value);
-    settings.translation.autoTranslateDynamic = enabled;
-    ui?.setAutoTranslateDynamic(enabled);
-    sendMessage({
-      type: 'set-auto-translate-dynamic',
-      value: enabled,
-      url: location.href,
-      documentKey,
-      runId
-    }).catch((error) => ui?.setStatus(LBT.errorMessage(error)));
-  }
-
   class PageUi {
     constructor() {
       this.translating = false;
@@ -117,13 +298,26 @@
       this.panel = null;
       this.status = null;
       this.progressBar = null;
-      this.autoDynamicLabel = null;
-      this.autoDynamicCheckbox = null;
+      this.progressDone = null;
+      this.progressTotal = null;
+      this.progressPercent = null;
+      this.progressCache = null;
+      this.statusDot = null;
+      this.pageTitle = null;
+      this.pageUrl = null;
+      this.modeControl = null;
+      this.modeHint = null;
+      this.allSitesPill = null;
+      this.siteState = null;
+      this.permissionCard = null;
+      this.permissionRequired = false;
+      this.modeBusy = false;
+      this.statusParams = {};
+      this.translationParams = new WeakMap();
       this.translateButton = null;
       this.stopButton = null;
       this.revertButton = null;
       this.fab = null;
-      this.hud = null;
       this.selectionButton = null;
       this.selectionBubble = null;
       this.selectionText = null;
@@ -133,14 +327,53 @@
       this.build();
     }
 
+    localizeNode(node, key, params = {}) {
+      node.dataset.lbtI18n = key;
+      this.translationParams.set(node, params);
+      node.textContent = translatePanel(key, params);
+      return node;
+    }
+
+    localized(tag, className, key, params = {}) {
+      return this.localizeNode(el(tag, className), key, params);
+    }
+
+    localizeAttribute(node, name, key) {
+      node.dataset['lbtI18n' + name.replace(/(^|-)([a-z])/g, (_match, _dash, letter) => letter.toUpperCase())] = key;
+      node.setAttribute(name, translatePanel(key));
+    }
+
+    updateTranslations() {
+      if (!this.shadow) return;
+      if (this.host) {
+        this.host.lang = panelUiLocale;
+        this.host.dir = /^(ar|fa|ur)(-|$)/i.test(panelUiLocale) ? 'rtl' : 'ltr';
+      }
+      for (const node of this.shadow.querySelectorAll('[data-lbt-i18n]')) {
+        node.textContent = translatePanel(node.dataset.lbtI18n, this.translationParams.get(node) || {});
+      }
+      for (const node of this.shadow.querySelectorAll('[data-lbt-i18n-title]')) {
+        node.setAttribute('title', translatePanel(node.dataset.lbtI18nTitle));
+      }
+      for (const node of this.shadow.querySelectorAll('[data-lbt-i18n-aria-label]')) {
+        node.setAttribute('aria-label', translatePanel(node.dataset.lbtI18nAriaLabel));
+      }
+      this.renderSiteMode();
+      this.updateProgressVisuals();
+      this.renderPermissionNotice();
+    }
+
     build() {
       document.querySelectorAll('[data-lbt-ui]').forEach((node) => node.remove());
       const { host, shadow } = shadowHost('data-lbt-floating-control');
       this.host = host;
       this.shadow = shadow;
+      host.lang = panelUiLocale;
+      host.dir = /^(ar|fa|ur)(-|$)/i.test(panelUiLocale) ? 'rtl' : 'ltr';
       const container = el('div', 'lbt-floating');
       container.dataset.corner = settings.appearance.floatingButtonCorner;
       this.container = container;
+
       this.fabShell = el('div', 'lbt-fab-shell');
       this.fabShell.dataset.active = 'false';
       this.fabShell.dataset.complete = 'false';
@@ -155,37 +388,67 @@
       this.fab.title = 'Local LLM Translator Pro';
       this.fab.addEventListener('click', () => {
         this.panel.hidden = !this.panel.hidden;
+        if (!this.panel.hidden) {
+          this.refreshPageInfo();
+          this.refreshSiteState().catch(() => {});
+        }
       });
+
       this.panel = el('div', 'lbt-panel');
       this.panel.hidden = true;
-      const title = el('div', 'lbt-title');
-      title.append(el('span', '', 'Local LLM Translator Pro'));
-      const close = el('button', 'lbt-close', '×');
-      close.style.border = '0'; close.style.background = 'transparent'; close.style.cursor = 'pointer'; close.style.fontSize = '18px';
-      close.addEventListener('click', () => { this.panel.hidden = true; });
-      title.append(close);
-      this.status = el('div', 'lbt-status', 'Ready');
-      this.autoDynamicLabel = el('label', 'lbt-auto-dynamic');
-      this.autoDynamicCheckbox = el('input');
-      this.autoDynamicCheckbox.type = 'checkbox';
-      this.autoDynamicCheckbox.checked = settings.translation.autoTranslateDynamic !== false;
-      this.autoDynamicCheckbox.addEventListener('change', () => setAutoTranslatePreference(this.autoDynamicCheckbox.checked));
-      const autoDynamicCopy = el('span');
-      autoDynamicCopy.append(el('strong', '', 'Automatically translate new content'), el('small', '', 'Only on this page after you start or finish a translation.'));
-      this.autoDynamicLabel.append(this.autoDynamicCheckbox, autoDynamicCopy);
+
+      const header = el('header', 'lbt-header');
+      const brand = el('div', 'lbt-brand');
+      const brandMark = el('img', 'lbt-brand-mark');
+      brandMark.src = LBT.api.runtime.getURL('src/assets/icon-48.png');
+      brandMark.alt = '';
+      const brandCopy = el('div', 'lbt-brand-copy');
+      brandCopy.append(el('strong', '', 'Local LLM Translator Pro'), this.localized('span', '', 'private by design'));
+      brand.append(brandMark, brandCopy);
+      const settingsButton = el('button', 'lbt-icon-button', '⚙');
+      this.localizeAttribute(settingsButton, 'title', 'Open settings');
+      this.localizeAttribute(settingsButton, 'aria-label', 'Open settings');
+      settingsButton.addEventListener('click', () => openOptions());
+      header.append(brand, settingsButton);
+
+      const pageCard = el('section', 'lbt-page-card');
+      pageCard.append(this.localized('div', 'lbt-eyebrow', 'CURRENT PAGE'));
+      this.pageTitle = document.title ? el('h2', 'lbt-page-title', document.title) : this.localized('h2', 'lbt-page-title', 'Current page');
+      this.pageUrl = el('div', 'lbt-page-url', location.href);
+      const statusRow = el('div', 'lbt-status-row');
+      this.statusDot = el('span', 'lbt-dot');
+      this.status = this.localized('span', 'lbt-status-text', 'Ready');
+      statusRow.append(this.statusDot, this.status);
+      const progress = el('div', 'lbt-progress');
+      this.progressBar = el('span');
+      progress.append(this.progressBar);
+      const stats = el('div', 'lbt-stats');
+      this.progressDone = el('span');
+      this.progressTotal = el('span');
+      this.progressPercent = el('span');
+      this.progressCache = el('span');
+      stats.append(this.progressDone, this.progressTotal, this.progressPercent, this.progressCache);
+      pageCard.append(this.pageTitle, this.pageUrl, statusRow, progress, stats);
+
       const actions = el('div', 'lbt-actions');
-      this.translateButton = el('button', 'primary', 'Translate');
-      this.stopButton = el('button', '', 'Stop');
-      this.revertButton = el('button', 'danger', 'Revert');
-      const settingsButton = el('button', '', 'Settings');
+      this.translateButton = this.localized('button', 'primary', 'Translate page');
+      this.stopButton = this.localized('button', '', 'Stop');
+      this.revertButton = this.localized('button', 'danger', 'Revert');
       this.stopButton.disabled = true;
       this.translateButton.addEventListener('click', async () => {
         this.setStatus('Starting translation…');
         try {
           const response = await sendMessage({ type: 'translate-page', url: location.href, documentKey });
-          if (response?.error) this.setStatus(response.error);
+          if (response?.error) {
+            if (isPermissionError(response)) {
+              this.setPermissionRequired(true);
+              this.setStatus('Site access required');
+            } else {
+              this.setStatus(response.error);
+            }
+          }
         } catch (error) {
-          this.setStatus(`Could not reach the translation service: ${LBT.errorMessage(error)}`);
+          this.setStatus('Could not reach the translation service: {error}', { error: LBT.errorMessage(error) });
         }
       });
       this.stopButton.addEventListener('click', () => {
@@ -193,8 +456,8 @@
         sessionActive = false;
         stopObserver();
         runId = null;
+        state.runId = null;
         runPaused = false;
-        state.keepAlive?.close?.();
         this.setTranslating(false);
         this.setStatus('Translation stopped.');
       });
@@ -204,22 +467,60 @@
         stopObserver();
         mutateWithoutObservation(() => renderer.revertAll());
         runId = null;
+        state.runId = null;
         runPaused = false;
-        state.keepAlive?.close?.();
         this.setTranslating(false);
         this.setStatus('Original text restored.');
       });
-      settingsButton.addEventListener('click', () => {
-        sendMessage({ type: 'open-options' }).catch(() => {});
-      });
-      actions.append(this.translateButton, this.stopButton, this.revertButton, settingsButton);
-      const progress = el('div', 'lbt-progress');
-      this.progressBar = el('span');
-      progress.append(this.progressBar);
-      this.panel.append(title, this.status, this.autoDynamicLabel, actions, progress);
+      actions.append(this.translateButton, this.stopButton, this.revertButton);
+
+      const modeCard = el('section', 'lbt-card');
+      const modeHead = el('div', 'lbt-row-head');
+      const modeTitle = el('div', 'lbt-card-title');
+      modeTitle.append(this.localized('div', 'lbt-eyebrow', 'TRANSLATE MODE'), this.localized('h3', '', 'What should happen on this site?'));
+      this.allSitesPill = this.localized('span', 'lbt-pill', 'All sites allowed');
+      this.allSitesPill.hidden = true;
+      modeHead.append(modeTitle, this.allSitesPill);
+      this.modeControl = el('div', 'lbt-mode-control');
+      this.modeControl.setAttribute('role', 'group');
+      this.localizeAttribute(this.modeControl, 'aria-label', 'Site translation mode');
+      for (const [mode, label] of [['auto', 'Automatic'], ['ask', 'Ask me'], ['never', 'Never']]) {
+        const button = this.localized('button', '', label);
+        button.type = 'button';
+        button.dataset.mode = mode;
+        button.addEventListener('click', () => this.setSiteMode(mode).catch(() => {}));
+        this.modeControl.append(button);
+      }
+      this.modeHint = el('p', 'lbt-hint');
+      const advanced = this.localized('button', 'lbt-link-button', 'Advanced site rules →');
+      advanced.type = 'button';
+      advanced.addEventListener('click', () => openOptions('sites'));
+      modeCard.append(modeHead, this.modeControl, this.modeHint, advanced);
+
+      this.permissionCard = el('section', 'lbt-permission-card');
+      const permissionCopy = el('div', 'lbt-permission-copy');
+      permissionCopy.append(
+        this.localized('strong', '', 'Site access required'),
+        this.localized('p', '', 'Allow access to all websites once. Nothing is read or changed until you allow it.')
+      );
+      const permissionButton = this.localized('button', '', 'Allow all sites');
+      permissionButton.type = 'button';
+      permissionButton.addEventListener('click', () => openOptions('sites'));
+      this.permissionCard.append(permissionCopy, permissionButton);
+      this.permissionCard.hidden = true;
+
+      const footer = el('footer', 'lbt-footer');
+      const github = this.localized('a', 'lbt-footer-link', 'GitHub');
+      github.href = GITHUB_URL;
+      github.target = '_blank';
+      github.rel = 'noopener noreferrer';
+      footer.append(el('span', '', 'v' + LBT.api.runtime.getManifest().version), github);
+
+      this.panel.append(header, pageCard, this.permissionCard, actions, modeCard, footer);
       this.fabShell.append(this.fab);
       container.append(this.fabShell, this.panel);
       shadow.append(container);
+
       this.onDocumentPointerDown = (event) => {
         if (this.panel.hidden) return;
         const path = event.composedPath?.() || [];
@@ -235,6 +536,9 @@
         document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
         document.removeEventListener('keydown', this.onDocumentKeyDown, true);
       }, { once: true });
+      this.renderSiteMode();
+      this.renderPermissionNotice();
+      this.updateProgressVisuals();
       this.applyAppearance();
     }
 
@@ -242,90 +546,137 @@
       if (!this.host) return;
       this.host.style.display = settings.appearance.floatingButtonEnabled ? '' : 'none';
       this.container.dataset.corner = settings.appearance.floatingButtonCorner;
-      if (!settings.appearance.hudEnabled) this.removeHud();
-      else this.ensureHud();
     }
 
-    setStatus(text) {
-      if (this.status) this.status.textContent = text;
+    setStatus(text, params = {}) {
+      if (!this.status) return;
+      this.statusParams = params;
+      this.localizeNode(this.status, text, params);
+    }
+
+    refreshPageInfo() {
+      if (!this.pageTitle) return;
+      if (document.title) {
+        delete this.pageTitle.dataset.lbtI18n;
+        this.translationParams.delete(this.pageTitle);
+        this.pageTitle.textContent = document.title;
+      } else {
+        this.localizeNode(this.pageTitle, 'Current page');
+      }
+      if (this.pageUrl) this.pageUrl.textContent = location.href;
+    }
+
+    async refreshSiteState() {
+      try {
+        const response = await sendMessage({ type: 'get-site-state', url: location.href });
+        if (response?.ok) {
+          this.siteState = response;
+          this.permissionRequired = false;
+        }
+      } catch { /* keep the last known site state */ }
+      this.renderSiteMode();
+      this.renderPermissionNotice();
+    }
+
+    setPermissionRequired(value) {
+      this.permissionRequired = Boolean(value);
+      this.renderPermissionNotice();
+    }
+
+    renderPermissionNotice() {
+      if (!this.permissionCard) return;
+      this.permissionCard.hidden = !(this.permissionRequired || this.siteState?.permissionGranted === false);
+    }
+
+    renderSiteMode() {
+      if (!this.modeControl) return;
+      const selected = this.siteState?.selected || settings.behaviour.autoTranslateDefault;
+      this.modeControl.querySelectorAll('button[data-mode]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.mode === selected);
+        button.disabled = this.modeBusy;
+      });
+      const allSites = this.siteState?.permissionGranted !== false
+        && Boolean(this.siteState?.allSitesEnabled ?? settings.behaviour.allSitesEnabled);
+      if (this.allSitesPill) this.allSitesPill.hidden = !allSites;
+      if (!this.modeHint) return;
+      const hintKey = selected === 'auto'
+        ? (allSites ? 'Every allowed page translates automatically. You can still stop or revert it.' : 'Automatic applies only to sites you enable one by one.')
+        : selected === 'never'
+          ? 'This site is blocked. Nothing will be read or sent.'
+          : 'Manual mode never sends text until you press Translate.';
+      this.localizeNode(this.modeHint, hintKey);
+    }
+
+    async setSiteMode(mode) {
+      if (this.modeBusy || !['auto', 'ask', 'never'].includes(mode)) return;
+      this.modeBusy = true;
+      this.renderSiteMode();
+      try {
+        const response = await sendMessage({ type: 'set-site-mode', url: location.href, mode });
+        if (response?.ok) {
+          this.siteState = response;
+          this.permissionRequired = false;
+          this.setStatus('Site translation mode updated.');
+        } else {
+          if (isPermissionError(response)) {
+            this.setPermissionRequired(true);
+            this.setStatus('Site access required');
+          } else {
+            this.setStatus(response?.error || 'Could not update site mode.');
+          }
+        }
+      } catch (error) {
+        this.setStatus('Could not update site mode: {error}', { error: LBT.errorMessage(error) });
+      } finally {
+        this.renderPermissionNotice();
+        this.modeBusy = false;
+        this.renderSiteMode();
+      }
+    }
+
+    updateProgressVisuals() {
+      const total = this.progress.total;
+      const done = this.progress.done;
+      const ratio = total > 0 ? Math.min(1, done / total) : 0;
+      const percent = Math.round(ratio * 100);
+      const complete = total > 0 && done >= total;
+      if (this.progressBar) this.progressBar.style.width = percent + '%';
+      if (this.progressDone) this.progressDone.textContent = translatePanel('{done} done', { done });
+      if (this.progressTotal) this.progressTotal.textContent = translatePanel('{total} total', { total });
+      if (this.progressPercent) this.progressPercent.textContent = total > 0 ? translatePanel('{percent}%', { percent }) : '—';
+      if (this.progressCache) this.progressCache.textContent = Number.isFinite(this.progress.cacheHitRate) ? translatePanel('{percent}% cache', { percent: Math.round(this.progress.cacheHitRate * 100) }) : translatePanel('— cache');
+      if (this.statusDot) this.statusDot.className = 'lbt-dot ' + (this.translating ? 'translating' : complete ? 'complete' : '');
+      if (this.fabShell) {
+        this.fabShell.style.setProperty('--lbt-fab-progress', percent + '%');
+        this.fabShell.dataset.active = String(this.translating);
+        this.fabShell.dataset.indeterminate = String(this.translating && total === 0);
+        this.fabShell.dataset.complete = String(complete && !this.translating);
+      }
+      if (this.fab) {
+        const badge = total > 0 ? (complete ? '✓' : percent + '%') : this.translating ? '…' : '';
+        this.fabBadge.textContent = badge;
+        this.fabBadge.hidden = !badge;
+        this.fab.classList.toggle('is-progress', !complete && (this.translating || total > 0));
+        const label = total > 0
+          ? translatePanel('Local LLM Translator Pro — {done}/{total} ({percent}%)', { done, total, percent })
+          : this.translating ? translatePanel('Local LLM Translator Pro — translating') : 'Local LLM Translator Pro';
+        this.fab.title = label;
+        this.fab.setAttribute('aria-label', label);
+      }
     }
 
     setTranslating(value) {
       this.translating = Boolean(value);
       if (this.translateButton) this.translateButton.disabled = this.translating;
       if (this.stopButton) this.stopButton.disabled = !this.translating;
-      if (!this.fab || !this.fabShell) return;
-      const complete = this.progress.total > 0 && this.progress.done >= this.progress.total;
-      const waiting = this.progress.total > 0 && this.progress.done < this.progress.total;
-      const percent = this.progress.total ? Math.round((this.progress.done / this.progress.total) * 100) : 0;
-      this.fabShell.dataset.active = String(this.translating);
-      this.fabShell.dataset.indeterminate = String(this.translating && this.progress.total === 0);
-      this.fabShell.dataset.complete = String(complete && !this.translating);
-      this.fab.classList.toggle('is-progress', !complete && (this.translating || waiting));
-      this.fabBadge.textContent = this.translating ? '…' : complete ? '✓' : waiting ? `${percent}%` : '';
-      this.fabBadge.hidden = !this.fabBadge.textContent;
-      this.fab.title = this.translating
-        ? 'Local LLM Translator Pro — translating'
-        : complete
-          ? 'Local LLM Translator Pro — complete'
-          : waiting
-            ? `Local LLM Translator Pro — ${this.progress.done}/${this.progress.total} (${percent}%)`
-            : 'Local LLM Translator Pro';
-      this.fab.setAttribute('aria-label', this.fab.title);
-      if (this.translating) this.fabShell.style.setProperty('--lbt-fab-progress', '0%');
+      this.updateProgressVisuals();
     }
 
-    setAutoTranslateDynamic(value) {
-      if (!this.autoDynamicCheckbox) return;
-      this.autoDynamicCheckbox.checked = Boolean(value);
+    setProgress(done, total, cacheHitRate = null) {
+      this.progress = { done: Number(done) || 0, total: Number(total) || 0, cacheHitRate };
+      this.updateProgressVisuals();
     }
 
-    setProgress(done, total) {
-      this.progress = { done: Number(done) || 0, total: Number(total) || 0 };
-      const ratio = this.progress.total > 0 ? Math.min(1, this.progress.done / this.progress.total) : 0;
-      const percent = Math.round(ratio * 100);
-      if (this.progressBar) this.progressBar.style.width = `${percent}%`;
-      if (this.fabShell) {
-        this.fabShell.style.setProperty('--lbt-fab-progress', `${percent}%`);
-        this.fabShell.dataset.active = String(this.translating);
-        this.fabShell.dataset.indeterminate = String(this.translating && this.progress.total === 0);
-        this.fabShell.dataset.complete = String(this.progress.total > 0 && this.progress.done >= this.progress.total);
-      }
-      if (this.fab && this.progress.total > 0) {
-        const complete = this.progress.done >= this.progress.total;
-        this.fabBadge.textContent = complete ? '✓' : `${percent}%`;
-        this.fabBadge.hidden = false;
-        this.fab.classList.toggle('is-progress', !complete);
-        const label = `Local LLM Translator Pro — ${this.progress.done}/${this.progress.total} (${percent}%)`;
-        this.fab.title = label;
-        this.fab.setAttribute('aria-label', label);
-      } else if (this.fab && this.translating) {
-        this.fabBadge.textContent = '…';
-        this.fabBadge.hidden = false;
-        this.fab.classList.remove('is-progress');
-      }
-      if (this.progress.total > 0) this.setStatus(`${this.progress.done} / ${this.progress.total} segments`);
-      this.updateHud();
-    }
-
-    ensureHud() {
-      if (this.hud || !this.shadow) return;
-      this.hud = el('div', 'lbt-hud', 'LLMT\nidle');
-      this.shadow.append(this.hud);
-    }
-
-    removeHud() {
-      this.hud?.remove();
-      this.hud = null;
-    }
-
-    updateHud() {
-      if (!settings.appearance.hudEnabled) return;
-      this.ensureHud();
-      if (!this.hud) return;
-      const ratio = this.progress.total ? Math.round((this.progress.done / this.progress.total) * 100) : 0;
-      this.hud.textContent = `LLMT ${this.translating ? 'translating' : 'idle'}\n${this.progress.done}/${this.progress.total} (${ratio}%)\n${runId ? runId.slice(0, 18) : 'no run'}`;
-    }
   }
 
   function unitPayload(unit) {
@@ -346,41 +697,55 @@
       handlePageContextChanged('spa-navigate');
       return;
     }
-    const ceiling = Math.min(5000, Math.max(1, Number(settings.speed.runaway.pageUnitCeiling) || 5000));
-    const limited = units.slice(0, ceiling);
+    const ceiling = Math.min(100000, Math.max(1, Number(settings.speed.runaway.pageUnitCeiling) || 100000));
+    const limited = LBT.sortUnitsByPriority(units).slice(0, ceiling);
     inventoryRevision += 1;
+    const payloads = limited.map(unitPayload);
+    const chunkSize = 5000;
+    const chunkCount = Math.max(1, Math.ceil(payloads.length / chunkSize));
+    const snapshotId = `${runId}:${inventoryRevision}`;
     try {
-      await sendMessage({
-        type: 'units-report',
-        url: sessionHref,
-        runId,
-        documentKey,
-        snapshot: true,
-        inventoryRevision,
-        units: limited.map(unitPayload)
-      });
+      for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+        await sendMessage({
+          type: 'units-report',
+          url: sessionHref,
+          runId,
+          documentKey,
+          snapshot: true,
+          inventoryRevision,
+          snapshotId,
+          chunkIndex,
+          chunkCount,
+          units: payloads.slice(chunkIndex * chunkSize, (chunkIndex + 1) * chunkSize)
+        });
+      }
     } catch (error) {
-      debugLog('units-report failed', LBT.errorMessage(error));
+      void error;
     }
   }
 
-  async function extractAndReport() {
+  async function extractAndReport(roots = null) {
     if (!runId || !sessionActive) return;
-    const units = LBT.extractAll(false);
+    if (roots === null) LBT.extractAll(false);
+    else LBT.extractFromRoots(roots);
+    const units = LBT.currentUnitsSnapshot();
     await reportUnits(units);
   }
 
-  function scheduleExtraction() {
+  function scheduleExtraction(roots = []) {
     if (!runId || !sessionActive) return;
+    for (const root of roots) extractionRoots.add(root);
     if (extractionTimer) clearTimeout(extractionTimer);
     extractionTimer = setTimeout(() => {
       extractionTimer = null;
+      const pendingRoots = [...extractionRoots];
+      extractionRoots = new Set();
       if (location.href !== sessionHref) {
         handlePageContextChanged('spa-navigate');
         return;
       }
-      extractAndReport().catch(() => {});
-    }, 300);
+      extractAndReport(pendingRoots).catch(() => {});
+    }, 180);
   }
 
   function mutateWithoutObservation(callback) {
@@ -409,13 +774,33 @@
         ui?.setStatus('Paused: too many page mutations.');
         return;
       }
-      const relevant = mutations.some((mutation) => {
-        if (mutation.type === 'childList') return [...mutation.addedNodes, ...mutation.removedNodes].some((node) => node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE);
-        return mutation.type === 'characterData' || mutation.type === 'attributes';
-      });
-      if (relevant) scheduleExtraction();
+      const roots = new Set();
+      let relevant = false;
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList') {
+          const changed = [...mutation.addedNodes, ...mutation.removedNodes].some((node) => node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE);
+          if (!changed) continue;
+          relevant = true;
+          for (const node of mutation.addedNodes) if (node.isConnected) roots.add(node);
+        } else if (mutation.type === 'characterData') {
+          relevant = true;
+          LBT.invalidateNodeUnit(mutation.target);
+          roots.add(mutation.target);
+        } else if (mutation.type === 'attributes') {
+          relevant = true;
+          LBT.invalidateElementUnits(mutation.target, mutation.attributeName);
+          roots.add(mutation.target);
+        }
+      }
+      if (relevant) scheduleExtraction([...roots]);
     });
-    mutationObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'hidden', 'aria-hidden'] });
+    mutationObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['style', 'hidden', 'aria-hidden', 'title', 'alt', 'placeholder', 'aria-label', 'value']
+    });
   }
 
   function stopObserver() {
@@ -423,11 +808,15 @@
     mutationObserver = null;
     if (extractionTimer) clearTimeout(extractionTimer);
     extractionTimer = null;
+    extractionRoots = new Set();
   }
 
   function beginRun(message) {
     if (message.documentKey && message.documentKey !== documentKey) return;
+    deliveryScheduler.reset();
+    extractionRoots = new Set();
     runId = message.runId;
+    state.runId = runId;
     lastRunId = message.runId;
     runUrl = message.url || location.href;
     sessionHref = runUrl;
@@ -437,18 +826,16 @@
     runPaused = false;
     mutationCount = 0;
     mutationWindowStart = Date.now();
-    ui?.setAutoTranslateDynamic(settings.translation.autoTranslateDynamic !== false);
     ui?.setProgress(0, 0);
     ui?.setTranslating(true);
     ui?.setStatus('Translating page…');
-    LBT.keepAlivePort(runId, runUrl);
     mark('lbt:run-begin');
     installMutationObserver();
     extractAndReport().catch(() => {});
   }
 
-  function acknowledgeSegments(message, unitIds) {
-    if (!runId || !unitIds.length || message.runId !== runId) return;
+  function acknowledgeSegments(unitIds) {
+    if (!runId || !unitIds.length || !sessionActive) return;
     sendMessage({
       type: 'segment-applied',
       url: sessionHref,
@@ -462,14 +849,7 @@
     if (!runId || runPaused || message.runId !== runId || !sessionActive || !Array.isArray(message.segments)) return;
     if (message.documentKey && message.documentKey !== documentKey) return;
     if (location.href !== sessionHref) return;
-    const applied = [];
-    mutateWithoutObservation(() => {
-      for (const segment of message.segments) {
-        if (renderer.apply(segment.unitId, segment.text)) applied.push(segment.unitId);
-      }
-    });
-    acknowledgeSegments(message, applied);
-    mark('lbt:first-segment-committed');
+    deliveryScheduler.enqueue(message.segments);
   }
 
   function progress(message) {
@@ -477,17 +857,21 @@
     if (!sessionActive) return;
     const total = Number(message.total) || 0;
     const done = Number(message.done) || 0;
-    ui?.setProgress(done, total);
+    const translated = Number(message.translated) || done;
+    ui?.setProgress(done, total, message.cacheHitRate);
     if (message.state === 'error') {
+      deliveryScheduler.reset();
       sessionActive = false;
       stopObserver();
       runId = null;
+      state.runId = null;
       runPaused = false;
       ui?.setTranslating(false);
       ui?.setStatus(message.notice?.message || 'Translation failed.');
       return;
     }
     if (message.state === 'paused') {
+      deliveryScheduler.reset();
       runPaused = true;
       ui?.setTranslating(false);
       ui?.setStatus(message.notice?.message || 'Translation paused.');
@@ -496,7 +880,9 @@
     if (message.state === 'translating') {
       runPaused = false;
       ui?.setTranslating(true);
-      ui?.setStatus(message.pending > 0 ? `Translating ${message.pending} new or remaining segments…` : 'Translating page…');
+      if (translated > done) ui?.setStatus('Applying translations to the page… {done} / {translated}', { done, translated });
+      else if (message.pending > 0) ui?.setStatus('Translating {pending} new or remaining segments…', { pending: message.pending });
+      else ui?.setStatus('Translating page…');
       return;
     }
     if (message.state === 'complete') {
@@ -506,9 +892,11 @@
         ui?.setStatus('Translation complete.');
         mark('lbt:run-settled');
       } else {
-        ui?.setStatus(settings.translation.autoTranslateDynamic === false
-          ? `${Math.max(0, total - done)} new segments waiting. Enable automatic translation or click Translate.`
-          : 'New content detected. Preparing translation…');
+        if (settings.translation.autoTranslateDynamic === false) {
+          ui?.setStatus('{count} new segments waiting. Enable automatic translation or click Translate.', { count: Math.max(0, total - done) });
+        } else {
+          ui?.setStatus('New content detected. Preparing translation…');
+        }
       }
     }
   }
@@ -546,7 +934,7 @@
   function showSelectionButton(info) {
     if (!settings.appearance.selectionButtonEnabled || !ui?.shadow) return;
     if (ui.selectionButton) ui.selectionButton.remove();
-    const button = el('button', 'lbt-sel-button', 'Translate selection');
+    const button = ui.localized('button', 'lbt-sel-button', 'Translate selection');
     button.addEventListener('mousedown', (event) => event.preventDefault());
     button.addEventListener('click', () => requestSelectionTranslation(info));
     ui.shadow.append(button);
@@ -571,7 +959,7 @@
       }
     } catch (error) {
       showSelectionBubble(info.rect, `Could not reach the translation service: ${LBT.errorMessage(error)}`, info.text, null, info.range);
-      debugLog('selection request failed', LBT.errorMessage(error));
+      void error;
     }
   }
 
@@ -579,16 +967,16 @@
     if (!ui?.shadow) return;
     if (ui.selectionBubble) ui.selectionBubble.remove();
     const bubble = el('div', 'lbt-sel-bubble');
-    bubble.append(el('div', 'lbt-sel-label', 'Selection'));
-    const text = el('div', 'lbt-sel-text', translation || statusText);
+    bubble.append(ui.localized('div', 'lbt-sel-label', 'Selection'));
+    const text = el('div', 'lbt-sel-text', translation || translatePanel(statusText));
     bubble.append(text);
     const actions = el('div', 'lbt-sel-actions');
     if (translation) {
-      const copy = el('button', '', 'Copy');
+      const copy = ui.localized('button', '', 'Copy');
       copy.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(translation); copy.textContent = 'Copied'; } catch { /* noop */ }
+        try { await navigator.clipboard.writeText(translation); ui.localizeNode(copy, 'Copied'); } catch { /* noop */ }
       });
-      const apply = el('button', 'primary', 'Replace selection');
+      const apply = ui.localized('button', 'primary', 'Replace selection');
       apply.addEventListener('click', () => {
         try {
           range.deleteContents();
@@ -599,7 +987,7 @@
       });
       actions.append(copy, apply);
     }
-    const close = el('button', '', 'Close');
+    const close = ui.localized('button', '', 'Close');
     close.addEventListener('click', hideSelectionUi);
     actions.append(close);
     bubble.append(actions);
@@ -636,10 +1024,11 @@
 
   function endPageSession(statusText = '', { revert = false } = {}) {
     stopObserver();
+    deliveryScheduler.reset();
     sessionActive = false;
     runId = null;
+    state.runId = null;
     runPaused = false;
-    state.keepAlive?.close?.();
     if (revert) mutateWithoutObservation(() => renderer.revertAll());
     ui?.setProgress(0, 0);
     ui?.setTranslating(false);
@@ -719,13 +1108,21 @@
 
   async function boot() {
     settings = await getSettings();
+    await refreshPanelTranslations(settings);
     renderer.mode = settings.translation.renderMode;
     ui = new PageUi();
+    ui.refreshSiteState().catch(() => {});
     subscribeSettings((next) => {
+      const localeChanged = panelLocaleFromSettings(next) !== panelRequestedLocale;
       settings = next;
       renderer.mode = next.translation.renderMode;
-      ui?.setAutoTranslateDynamic(next.translation.autoTranslateDynamic !== false);
+      ui?.refreshSiteState().catch(() => {});
       ui?.applyAppearance();
+      if (localeChanged) {
+        refreshPanelTranslations(next).then((changed) => {
+          if (changed) ui?.updateTranslations();
+        }).catch(() => {});
+      }
     });
     mark('lbt:content-boot-start');
     document.documentElement.setAttribute('data-lbt-loaded', 'true');
@@ -739,6 +1136,9 @@
         case 'run-begin': beginRun(message); break;
         case 'segment-delivery': applyDelivery(message); break;
         case 'progress-update': progress(message); break;
+        case 'permission-required':
+          ui?.setPermissionRequired(true);
+          break;
         case 'run-cancel':
           if (message.runId && runId && message.runId !== runId) break;
           endPageSession(message.reason === 'stop' ? 'Translation stopped.' : '', { revert: false });
@@ -754,7 +1154,12 @@
         case 'run-resume':
           if (message.runId && runId && message.runId !== runId) break;
           if (message.runId && (!message.documentKey || message.documentKey === documentKey)) {
+            if (runId !== message.runId) {
+              deliveryScheduler.reset();
+              extractionRoots = new Set();
+            }
             runId = message.runId;
+            state.runId = runId;
             lastRunId = message.runId;
             runUrl = message.url || location.href;
             sessionHref = runUrl;
@@ -766,7 +1171,7 @@
           }
           break;
         case 'toggle-render-mode':
-          ui?.setStatus(`Display: ${mutateWithoutObservation(() => renderer.toggleMode())}`);
+          ui?.setStatus('Display: {mode}', { mode: mutateWithoutObservation(() => renderer.toggleMode()) });
           break;
         case 'translate-selection': {
           const info = selectionInfo() || lastSelection;
@@ -799,6 +1204,7 @@
 
   boot().catch((error) => {
     console.error('[lbt] content boot failed', error);
+      LBT.reportClientError('error', error, { phase: 'content-boot' });
   });
 })();
 

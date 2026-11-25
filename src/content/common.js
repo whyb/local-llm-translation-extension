@@ -53,12 +53,11 @@
     },
     speed: {
       prefetch: { hoverPrefetch: false, nextNavPrediction: false },
-      runaway: { pageUnitCeiling: 500, mutationStormDetection: true, mutationStormWindowMs: 3000, mutationStormMaxMutations: 300 },
+      runaway: { pageUnitCeiling: 100000, mutationStormDetection: true, mutationStormWindowMs: 3000, mutationStormMaxMutations: 300 },
       contentMemory: { maxRetainedOriginals: 5000 }
     },
     appearance: {
-      glow: { enabled: true, pendingColor: '#7aa2f7', freshColor: '#9ece6a', cooldownMs: 1200, pendingStyle: 'text-glow', freshStyle: 'pop', reducedIntensity: false },
-      floatingButtonEnabled: true, floatingButtonCorner: 'bottom-right', selectionButtonEnabled: true, hudEnabled: false
+      uiLocale: null, floatingButtonEnabled: true, floatingButtonCorner: 'bottom-right', selectionButtonEnabled: true
     },
     behaviour: { autoTranslateDefault: 'ask', allSitesEnabled: false, hotkeys: {}, siteRules: [], enabledSites: [] },
     exclusions: {
@@ -67,7 +66,6 @@
       domainSelectorRules: [], attributes: { enabled: true, title: false, alt: false, placeholder: true, ariaLabel: false, buttonValue: true },
       language: { inheritPageLanguage: true }
     },
-    robustness: { hostilePage: { enabled: true }, runKeepAlive: { enabled: true, intervalMs: 12000 }, verboseLogging: false },
     cache: { urlNormalisation: { enabled: true, stripParams: TRACKING_PARAMS, stripFragment: true, domainOverrides: [] } }
   };
 
@@ -88,8 +86,25 @@
     observer: null,
     debounceTimer: null,
     lastHref: location.href,
-    keepAlive: null
+    documentKey: ''
   };
+
+  let extractionCache = null;
+
+  function withExtractionCache(callback) {
+    if (extractionCache) return callback();
+    extractionCache = {
+      zones: new WeakMap(),
+      skips: new WeakMap(),
+      textSkips: new WeakMap(),
+      safeAncestors: new WeakSet()
+    };
+    try {
+      return callback();
+    } finally {
+      extractionCache = null;
+    }
+  }
 
   function clone(value) {
     try { return structuredClone(value); } catch { return JSON.parse(JSON.stringify(value)); }
@@ -148,6 +163,22 @@
     throw lastError;
   }
 
+  function reportClientError(level, value, details = {}) {
+    const error = value instanceof Error ? value : new Error(String(value ?? 'Unknown error'));
+    sendMessage({
+      type: 'client-error',
+      source: 'content',
+      level,
+      message: error.message,
+      stack: error.stack || '',
+      url: location.href,
+      runId: state.runId || null,
+      documentKey: state.documentKey || '',
+      userAgent: navigator.userAgent,
+      details
+    }).catch(() => {});
+  }
+
   function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);
   }
@@ -190,21 +221,38 @@
 
   function classifyZone(element) {
     if (!element || element.nodeType !== Node.ELEMENT_NODE) return 'main';
+    const cached = extractionCache?.zones.get(element);
+    if (cached) return cached;
     let current = element;
+    const chain = [];
+    let resolved = '';
     while (current && current !== document.documentElement) {
+      const ancestorZone = extractionCache?.zones.get(current);
+      if (ancestorZone) {
+        resolved = ancestorZone;
+        break;
+      }
+      chain.push(current);
       const tag = current.tagName?.toLowerCase() || '';
       const role = (current.getAttribute?.('role') || '').toLowerCase();
       const className = current.getAttribute?.('class') || '';
-      if (/cookie|consent|gdpr|cookiebot|onetrust/i.test(className) || /cookie|consent/i.test(role)) return 'boilerplate';
-      if (/advert|sponsor|promo|adslot|adsbygoogle/i.test(className) || role === 'advertisement') return 'ad';
-      if (role === 'navigation' || tag === 'nav' || tag === 'menu') return 'nav';
-      if (role === 'complementary' || tag === 'aside') return 'aside';
-      if (role === 'contentinfo' || tag === 'footer' || /footer/i.test(className)) return 'footer';
-      if (/related|recommend|more-stories|read-next/i.test(className)) return 'related';
-      if (/^h[1-6]$/.test(tag) || role === 'heading') return 'heading';
+      let zone = '';
+      if (/cookie|consent|gdpr|cookiebot|onetrust/i.test(className) || /cookie|consent/i.test(role)) zone = 'boilerplate';
+      else if (/advert|sponsor|promo|adslot|adsbygoogle/i.test(className) || role === 'advertisement') zone = 'ad';
+      else if (role === 'navigation' || tag === 'nav' || tag === 'menu') zone = 'nav';
+      else if (role === 'complementary' || tag === 'aside') zone = 'aside';
+      else if (role === 'contentinfo' || tag === 'footer' || /footer/i.test(className)) zone = 'footer';
+      else if (/related|recommend|more-stories|read-next/i.test(className)) zone = 'related';
+      else if (/^h[1-6]$/.test(tag) || role === 'heading') zone = 'heading';
+      if (zone) {
+        resolved = zone;
+        break;
+      }
       current = current.parentElement;
     }
-    return 'main';
+    if (!resolved) resolved = 'main';
+    for (const node of chain) extractionCache?.zones.set(node, resolved);
+    return resolved;
   }
 
   function zoneWeight(zone) {
@@ -243,25 +291,31 @@
 
   function shouldSkipElement(element) {
     if (!element || element.nodeType !== Node.ELEMENT_NODE) return true;
-    if (isManaged(element)) return true;
+    const cached = extractionCache?.skips.get(element);
+    if (cached !== undefined) return cached;
+    const remember = (value) => {
+      extractionCache?.skips.set(element, value);
+      return value;
+    };
+    if (isManaged(element)) return remember(true);
     const settings = state.settings;
     const tag = element.tagName.toLowerCase();
-    if (SKIP_ANCESTOR_TAGS.has(tag)) return true;
-    if (isSensitiveInput(element)) return true;
-    if (isEditable(element)) return true;
-    if (settings.exclusions?.zones?.hiddenContent && isHidden(element)) return true;
-    if (settings.exclusions?.zones?.cookieBanners && classifyZone(element) === 'boilerplate') return true;
-    if (settings.exclusions?.zones?.ads && classifyZone(element) === 'ad') return true;
+    if (SKIP_ANCESTOR_TAGS.has(tag)) return remember(true);
+    if (isSensitiveInput(element)) return remember(true);
+    if (isEditable(element)) return remember(true);
+    if (settings.exclusions?.zones?.hiddenContent && isHidden(element)) return remember(true);
+    if (settings.exclusions?.zones?.cookieBanners && classifyZone(element) === 'boilerplate') return remember(true);
+    if (settings.exclusions?.zones?.ads && classifyZone(element) === 'ad') return remember(true);
     if (settings.exclusions?.domainSelectorRules) {
       const domain = location.hostname;
       for (const rule of settings.exclusions.domainSelectorRules) {
         if (!domainMatches(domain, rule.domain)) continue;
         for (const selector of rule.deny || []) {
-          try { if (element.matches(selector)) return true; } catch { /* invalid selector */ }
+          try { if (element.matches(selector)) return remember(true); } catch { /* invalid selector */ }
         }
       }
     }
-    return false;
+    return remember(false);
   }
 
   function meaningfulText(value) {
@@ -286,58 +340,92 @@
   }
 
   function shouldSkipTextNode(node) {
+    const cached = extractionCache?.textSkips.get(node);
+    if (cached !== undefined) return cached;
     const element = node.parentElement;
-    if (!element) return true;
+    if (!element) {
+      extractionCache?.textSkips.set(node, true);
+      return true;
+    }
+    if (extractionCache?.safeAncestors.has(element)) {
+      extractionCache.textSkips.set(node, false);
+      return false;
+    }
     let current = element;
+    const chain = [];
     while (current && current !== document.documentElement) {
-      if (SKIP_TAGS.has(current.tagName?.toLowerCase() || '')) return true;
-      if (shouldSkipElement(current)) return true;
+      if (extractionCache?.safeAncestors.has(current)) break;
+      chain.push(current);
+      if (SKIP_TAGS.has(current.tagName?.toLowerCase() || '')) {
+        extractionCache?.textSkips.set(node, true);
+        return true;
+      }
+      if (shouldSkipElement(current)) {
+        extractionCache?.textSkips.set(node, true);
+        return true;
+      }
       current = current.parentElement;
     }
+    for (const safe of chain) extractionCache?.safeAncestors.add(safe);
+    extractionCache?.textSkips.set(node, false);
     return false;
   }
 
-  function extractTextUnits(root = document.documentElement, { onlyNew = true } = {}) {
+  function textUnitForNode(node, onlyNew, priorityIndex = 0) {
+    if (onlyNew && state.processedNodes.has(node)) return null;
+    const parent = node.parentElement;
+    if (!parent) return null;
+    const source = originalTextFor(node);
+    const parts = splitWhitespace(source);
+    if (!meaningfulText(parts.text)) return null;
+    let id = state.unitIdByNode.get(node);
+    if (!id) {
+      id = nextUnitId('lbt');
+      state.unitIdByNode.set(node, id);
+    }
+    const zone = classifyZone(parent);
+    const unit = {
+      id,
+      kind: 'text',
+      text: parts.text,
+      leading: parts.leading,
+      trailing: parts.trailing,
+      zone,
+      srcLang: detectLanguage(parts.text, parent.closest?.('[lang]')?.getAttribute('lang') || document.documentElement.getAttribute('lang')),
+      priority: { zoneWeight: zoneWeight(zone), viewportProximity: priorityIndex < 200 ? 1 : 0.2, visibilityFactor: 1 },
+      node
+    };
+    state.unitByNode.set(node, unit);
+    state.unitById.set(id, unit);
+    state.processedNodes.add(node);
+    return unit;
+  }
+
+  function extractTextUnitsInternal(root = document.documentElement, { onlyNew = true } = {}) {
     const units = [];
     if (!root) return units;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        if (shouldSkipTextNode(node)) return NodeFilter.FILTER_REJECT;
-        const value = originalTextFor(node);
-        return meaningfulText(value) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-      }
-    });
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (onlyNew && state.processedNodes.has(node)) continue;
-      const parent = node.parentElement;
-      if (!parent) continue;
-      const source = originalTextFor(node);
-      const parts = splitWhitespace(source);
-      if (!meaningfulText(parts.text)) continue;
-      let id = state.unitIdByNode.get(node);
-      if (!id) {
-        id = nextUnitId('lbt');
-        state.unitIdByNode.set(node, id);
-      }
-      const zone = classifyZone(parent);
-      const unit = {
-        id,
-        kind: 'text',
-        text: parts.text,
-        leading: parts.leading,
-        trailing: parts.trailing,
-        zone,
-        srcLang: detectLanguage(parts.text, parent.closest?.('[lang]')?.getAttribute('lang') || document.documentElement.getAttribute('lang')),
-        priority: { zoneWeight: zoneWeight(zone), viewportProximity: 1, visibilityFactor: 1 },
-        node
-      };
-      state.unitByNode.set(node, unit);
-      state.unitById.set(id, unit);
-      state.processedNodes.add(node);
-      units.push(unit);
+    const nodes = [];
+    if (root.nodeType === Node.TEXT_NODE) {
+      if (!shouldSkipTextNode(root)) nodes.push(root);
+    } else {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          if (shouldSkipTextNode(node)) return NodeFilter.FILTER_REJECT;
+          const value = originalTextFor(node);
+          return meaningfulText(value) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+    }
+    for (let index = 0; index < nodes.length; index += 1) {
+      const unit = textUnitForNode(nodes[index], onlyNew, index);
+      if (unit) units.push(unit);
     }
     return units;
+  }
+
+  function extractTextUnits(root = document.documentElement, options = {}) {
+    return withExtractionCache(() => extractTextUnitsInternal(root, options));
   }
 
   function attributeIsEnabled(attribute) {
@@ -359,9 +447,9 @@
     return true;
   }
 
-  function extractAttributeUnits(root = document.documentElement, { onlyNew = true } = {}) {
+  function extractAttributeUnitsInternal(root = document.documentElement, { onlyNew = true } = {}) {
     const units = [];
-    if (!root) return units;
+    if (!root || root.nodeType !== Node.ELEMENT_NODE) return units;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
       acceptNode(node) {
         return shouldSkipElement(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
@@ -391,7 +479,7 @@
           attribute,
           zone,
           srcLang: detectLanguage(value, element.closest?.('[lang]')?.getAttribute('lang') || document.documentElement.getAttribute('lang')),
-          priority: { zoneWeight: zoneWeight(zone), viewportProximity: 1, visibilityFactor: 1 },
+          priority: { zoneWeight: zoneWeight(zone), viewportProximity: 0.2, visibilityFactor: 1 },
           element
         };
         state.unitById.set(id, unit);
@@ -401,8 +489,139 @@
     return units;
   }
 
+  function extractAttributeUnits(root = document.documentElement, options = {}) {
+    return withExtractionCache(() => extractAttributeUnitsInternal(root, options));
+  }
+
   function extractAll(onlyNew = true) {
-    return [...extractTextUnits(document.documentElement, { onlyNew }), ...extractAttributeUnits(document.documentElement, { onlyNew })];
+    return withExtractionCache(() => [
+      ...extractTextUnitsInternal(document.documentElement, { onlyNew }),
+      ...extractAttributeUnitsInternal(document.documentElement, { onlyNew })
+    ]);
+  }
+
+  function extractFromRoots(roots) {
+    if (!Array.isArray(roots) || !roots.length) return [];
+    return withExtractionCache(() => {
+      const found = new Map();
+      for (const root of roots) {
+        if (!root || !root.isConnected) continue;
+        const units = root.nodeType === Node.TEXT_NODE
+          ? extractTextUnitsInternal(root, { onlyNew: true })
+          : root.nodeType === Node.ELEMENT_NODE
+            ? [...extractTextUnitsInternal(root, { onlyNew: true }), ...extractAttributeUnitsInternal(root, { onlyNew: true })]
+            : [];
+        for (const unit of units) found.set(unit.id, unit);
+      }
+      return [...found.values()];
+    });
+  }
+
+  function forgetUnit(unit) {
+    if (!unit) return;
+    state.unitById.delete(unit.id);
+    state.translationByUnit.delete(unit.id);
+    if (unit.kind === 'text') {
+      if (state.unitByNode.get(unit.node)?.id === unit.id) state.unitByNode.delete(unit.node);
+      if (state.unitIdByNode.get(unit.node) === unit.id) state.unitIdByNode.delete(unit.node);
+      state.processedNodes.delete(unit.node);
+      state.originals.delete(unit.node);
+      return;
+    }
+    const entries = state.attributeUnitByElement.get(unit.element);
+    if (entries?.get(unit.attribute)?.id === unit.id) entries.delete(unit.attribute);
+    const original = state.originals.get(unit.element);
+    if (original?.kind === 'attributes') {
+      original.values?.delete(unit.attribute);
+      if (!original.values?.size) state.originals.delete(unit.element);
+    }
+  }
+
+  function invalidateNodeUnit(node) {
+    if (!node) return;
+    const unit = state.unitByNode.get(node);
+    if (unit) forgetUnit(unit);
+    else state.originals.delete(node);
+  }
+
+  function invalidateElementUnits(element, attribute = null) {
+    if (!element) return;
+    const entries = state.attributeUnitByElement.get(element);
+    if (entries) {
+      if (attribute) {
+        const entry = entries.get(attribute);
+        if (entry) forgetUnit(state.unitById.get(entry.id));
+      } else {
+        for (const entry of entries.values()) forgetUnit(state.unitById.get(entry.id));
+        entries.clear();
+      }
+    }
+    if (attribute) {
+      const original = state.originals.get(element);
+      original?.values?.delete(attribute);
+      if (!original?.values?.size) state.originals.delete(element);
+    } else {
+      state.originals.delete(element);
+    }
+  }
+
+  function currentUnitsSnapshot() {
+    return withExtractionCache(() => {
+      const textRoots = [];
+      const attributeRoots = [];
+      for (const unit of [...state.unitById.values()]) {
+        if (unit.kind === 'text') {
+          if (!unit.node?.isConnected) {
+            forgetUnit(unit);
+            continue;
+          }
+          const original = originalTextFor(unit.node);
+          const parts = splitWhitespace(original);
+          if (!meaningfulText(parts.text)) {
+            forgetUnit(unit);
+            continue;
+          }
+          if (parts.text !== unit.text && !state.originals.has(unit.node)) {
+            forgetUnit(unit);
+            textRoots.push(unit.node);
+            continue;
+          }
+          const translated = state.translationByUnit.get(unit.id)?.translated;
+          if (typeof translated === 'string' && !state.originals.get(unit.node)?.wrapper) {
+            const expected = `${unit.leading ?? parts.leading}${translated}${unit.trailing ?? parts.trailing}`;
+            if (unit.node.nodeValue !== expected) {
+              forgetUnit(unit);
+              textRoots.push(unit.node);
+            }
+          }
+          continue;
+        }
+        if (!unit.element?.isConnected) {
+          forgetUnit(unit);
+          continue;
+        }
+        const value = unit.element.getAttribute(unit.attribute);
+        const translated = state.translationByUnit.get(unit.id)?.translated;
+        const expected = typeof translated === 'string' ? translated : unit.text;
+        if (value === null || !meaningfulText(value) || value !== expected) {
+          forgetUnit(unit);
+          attributeRoots.push(unit.element);
+        }
+      }
+      for (const root of new Set(textRoots)) if (root.isConnected) extractTextUnitsInternal(root, { onlyNew: true });
+      for (const root of new Set(attributeRoots)) if (root.isConnected) extractAttributeUnitsInternal(root, { onlyNew: true });
+      return [...state.unitById.values()];
+    });
+  }
+
+  function sortUnitsByPriority(units) {
+    const score = (unit) => {
+      const priority = unit?.priority || {};
+      return (Number(priority.viewportProximity) || 0) * 10000
+        + (Number(priority.zoneWeight) || 1) * 1000
+        + (Number(priority.visibilityFactor) || 1);
+    };
+    return units.slice().sort((left, right) => score(right) - score(left));
   }
 
 
@@ -651,6 +870,7 @@
       if (!unit || typeof translated !== 'string') return false;
       this.translations.set(unitId, { translated, unit });
       if (unit.kind === 'attribute') {
+        if (!unit.element?.isConnected) return false;
         setAttributeText(unit.element, unit.attribute, translated, unit);
         return true;
       }
@@ -700,6 +920,116 @@
     }
   }
 
+  function createDeliveryScheduler({ applySegment, onAck, isActive, onFirstApplied }) {
+    const queue = new Map();
+    const pendingAcks = new Set();
+    let frameHandle = null;
+    let timerHandle = null;
+    let ackTimer = null;
+    let firstApplied = false;
+
+    const applyBudgetMs = 6;
+    const maxSegmentsPerFrame = 96;
+    const ackDelayMs = 80;
+    const maxAckBatch = 100;
+
+    function clearFlushHandle() {
+      if (frameHandle !== null) cancelAnimationFrame(frameHandle);
+      if (timerHandle !== null) clearTimeout(timerHandle);
+      frameHandle = null;
+      timerHandle = null;
+    }
+
+    function flushAcks() {
+      if (ackTimer !== null) clearTimeout(ackTimer);
+      ackTimer = null;
+      if (!pendingAcks.size) return;
+      const ids = [];
+      for (const unitId of pendingAcks) {
+        ids.push(unitId);
+        pendingAcks.delete(unitId);
+        if (ids.length >= maxAckBatch) break;
+      }
+      if (ids.length) onAck(ids);
+      if (pendingAcks.size) scheduleAck();
+    }
+
+    function scheduleAck() {
+      if (ackTimer !== null || !pendingAcks.size) return;
+      if (pendingAcks.size >= maxAckBatch) {
+        flushAcks();
+        return;
+      }
+      ackTimer = setTimeout(flushAcks, ackDelayMs);
+    }
+
+    function scheduleFlush() {
+      if (frameHandle !== null || timerHandle !== null || !queue.size) return;
+      if (document.hidden || typeof requestAnimationFrame !== 'function') {
+        timerHandle = setTimeout(flush, 0);
+      } else {
+        frameHandle = requestAnimationFrame(flush);
+      }
+    }
+
+    function flush() {
+      clearFlushHandle();
+      if (!isActive()) {
+        reset();
+        return;
+      }
+      const startedAt = performance.now?.() ?? Date.now();
+      let applied = 0;
+      while (queue.size && applied < maxSegmentsPerFrame) {
+        if (applied > 0 && ((performance.now?.() ?? Date.now()) - startedAt) >= applyBudgetMs) break;
+        const [unitId, segment] = queue.entries().next().value;
+        queue.delete(unitId);
+        try {
+          if (applySegment(segment)) {
+            pendingAcks.add(unitId);
+            applied += 1;
+          }
+        } catch { /* A later replay can retry this segment. */ }
+      }
+      if (applied) {
+        if (!firstApplied) {
+          firstApplied = true;
+          onFirstApplied?.();
+        }
+        scheduleAck();
+      }
+      if (queue.size) scheduleFlush();
+      else flushAcks();
+    }
+
+    function enqueue(segments) {
+      for (const segment of segments || []) {
+        if (segment && typeof segment.unitId === 'string' && typeof segment.text === 'string') {
+          queue.set(segment.unitId, segment);
+        }
+      }
+      scheduleFlush();
+    }
+
+    function reset() {
+      clearFlushHandle();
+      if (ackTimer !== null) clearTimeout(ackTimer);
+      ackTimer = null;
+      queue.clear();
+      pendingAcks.clear();
+      firstApplied = false;
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden || frameHandle === null) return;
+      cancelAnimationFrame(frameHandle);
+      frameHandle = null;
+      scheduleFlush();
+    });
+
+    return { enqueue, reset, size: () => queue.size };
+  }
+
   function applyEarlyTranslation(node, translation) {
     const unit = state.unitByNode.get(node);
     const original = originalTextFor(node);
@@ -708,36 +1038,6 @@
     }
     const parts = splitWhitespace(original);
     node.nodeValue = `${parts.leading}${translation}${parts.trailing}`;
-  }
-
-  function keepAlivePort(runId, url) {
-    state.keepAlive?.close?.();
-    const settings = state.settings.robustness?.runKeepAlive;
-    if (!settings?.enabled || !api.runtime.connect) return null;
-    let port;
-    try { port = api.runtime.connect({ name: 'lbt.run.keepalive' }); } catch { return null; }
-    let closed = false;
-    const timer = setInterval(() => {
-      if (closed) return;
-      try { port.postMessage({ type: 'run-port-keepalive', runId, url }); } catch { close(); }
-    }, Math.max(1000, Number(settings.intervalMs) || 12000));
-    const close = () => {
-      if (closed) return;
-      closed = true;
-      clearInterval(timer);
-      try { port.disconnect(); } catch { /* noop */ }
-      if (state.keepAlive?.port === port) state.keepAlive = null;
-    };
-    try {
-      port.onDisconnect?.addListener(() => {
-        // Chrome reports bfcache-driven port closure through runtime.lastError.
-        // Consume it here so it is not surfaced as an unchecked extension error.
-        try { void api.runtime?.lastError; } catch { /* noop */ }
-        close();
-      });
-    } catch { /* optional */ }
-    state.keepAlive = { port, close };
-    return state.keepAlive;
   }
 
   function normalizePageKey(value) {
@@ -770,11 +1070,6 @@
     }
   }
 
-  function debugLog(...args) {
-    if (!state.settings.robustness?.verboseLogging) return;
-    try { console.info('[lbt]', ...args); } catch { /* noop */ }
-  }
-
   function mark(name) {
     try { performance.mark(name); } catch { /* noop */ }
   }
@@ -796,13 +1091,33 @@
     extractTextUnits,
     extractAttributeUnits,
     extractAll,
+    extractFromRoots,
+    currentUnitsSnapshot,
+    invalidateNodeUnit,
+    invalidateElementUnits,
+    sortUnitsByPriority,
+    createDeliveryScheduler,
     originalTextFor,
     applyEarlyTranslation,
-    keepAlivePort,
     normalizePageKey,
-    debugLog,
+    reportClientError,
     mark,
     TRACKING_PARAMS,
     DEFAULT_CONTENT_SETTINGS
   };
+
+  if (!globalThis.__lbtErrorHandlersInstalled) {
+    globalThis.__lbtErrorHandlersInstalled = true;
+    globalThis.addEventListener('error', (event) => {
+      reportClientError('error', event.error || event.message, {
+        phase: 'window-error',
+        filename: event.filename || '',
+        lineno: event.lineno || 0,
+        colno: event.colno || 0
+      });
+    });
+    globalThis.addEventListener('unhandledrejection', (event) => {
+      reportClientError('error', event.reason, { phase: 'unhandled-rejection' });
+    });
+  }
 })();

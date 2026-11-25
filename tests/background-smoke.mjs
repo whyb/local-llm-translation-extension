@@ -1,7 +1,7 @@
 const listeners = {};
 const event = (name) => ({ addListener(fn) { (listeners[name] ??= []).push(fn); }, removeListener() {} });
 globalThis.chrome = {
-  runtime: { sendMessage: async () => ({ ok: true }), connect: () => ({ postMessage() {}, disconnect() {} }), onMessage: event('runtimeMessage'), onConnect: event('runtimeConnect'), getManifest: () => ({ version: '2.0.3' }), reload() {}, getURL: (path) => path, openOptionsPage: async () => {} },
+  runtime: { sendMessage: async () => ({ ok: true }), onMessage: event('runtimeMessage'), getManifest: () => ({ version: '2.0.3' }), reload() {}, getURL: (path) => path, openOptionsPage: async () => {} },
   storage: { local: { get: async () => ({}), set: async () => {}, remove: async () => {}, clear: async () => {} }, onChanged: event('storageChanged') },
   tabs: { query: async () => [{ id: 1, url: 'https://example.com/', title: 'Example' }], get: async () => ({ id: 1, url: 'https://example.com/' }), sendMessage: async () => undefined, create: async () => ({}), update: async () => ({}), onUpdated: event('tabUpdated'), onRemoved: event('tabRemoved'), onActivated: event('tabActivated') },
   scripting: { registerContentScripts: async () => {}, unregisterContentScripts: async () => {}, executeScript: async () => [] },
@@ -11,7 +11,6 @@ globalThis.chrome = {
 };
 await import('../src/background/index.js');
 if (!listeners.runtimeMessage?.length) throw new Error('runtime message listener was not registered synchronously');
-if (!listeners.runtimeConnect?.length) throw new Error('runtime connect listener was not registered synchronously');
 await new Promise((resolve) => setTimeout(resolve, 100));
 function sendToBackground(message, sender = {}) {
   return new Promise((resolve, reject) => {
@@ -79,9 +78,9 @@ await sendToBackground({ type: 'stop', url: 'https://example.com/', tabId: 1 });
 listeners.command[0]('translate-page');
 await new Promise((resolve) => setTimeout(resolve, 30));
 const commanded = await sendToBackground({ type: 'get-progress', url: 'https://example.com/', tabId: 1 });
-if (commanded?.state !== 'translating') throw new Error(`command did not start translation: ${JSON.stringify(commanded)}`);
+if (commanded?.state !== 'idle') throw new Error(`removed translate-page command unexpectedly started work: ${JSON.stringify(commanded)}`);
 listeners.command[0]('revert-page');
 await new Promise((resolve) => setTimeout(resolve, 30));
 const reverted = await sendToBackground({ type: 'get-progress', url: 'https://example.com/', tabId: 1 });
-if (reverted?.state !== 'idle') throw new Error(`command did not revert translation: ${JSON.stringify(reverted)}`);
+if (reverted?.state !== 'idle') throw new Error(`removed revert-page command unexpectedly changed work: ${JSON.stringify(reverted)}`);
 console.log('background module smoke OK');

@@ -40,7 +40,6 @@ function createHarness({ siteState, renderMode }) {
       },
       extractTextUnits() { return []; },
       applyEarlyTranslation() { throw new Error('early paint should not run in this test'); },
-      debugLog() {},
       errorMessage(error) { return error instanceof Error ? error.message : String(error); }
     }
   };

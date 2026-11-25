@@ -45,8 +45,10 @@ h2 { margin: 1px 0 0; font-size: 13px; line-height: 1.35; }
 .status-row { display: flex; align-items: center; gap: 7px; font-size: 12px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); box-shadow: 0 0 0 4px color-mix(in srgb, var(--muted) 15%, transparent); }
 .dot.translating { background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); animation: pulse 1.4s infinite; }
+.dot.checking { background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); animation: pulse 1.4s infinite; }
 .dot.complete { background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 18%, transparent); }
 .dot.paused { background: #d97706; box-shadow: 0 0 0 4px color-mix(in srgb, #d97706 18%, transparent); }
+.dot.error { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 18%, transparent); }
 @keyframes pulse { 50% { transform: scale(.72); opacity: .75; } }
 .muted { color: var(--muted); }
 .progress { height: 6px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--line) 70%, transparent); }
@@ -75,5 +77,7 @@ button:disabled { opacity: .45; cursor: default; box-shadow: none; }
 .mini-card .muted { font-size: 10px; line-height: 1.35; }
 .error { background: color-mix(in srgb, var(--danger) 9%, var(--card)); border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--line)); color: var(--danger); border-radius: 12px; padding: 10px 12px; font-size: 11px; }
 footer { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; }
+.footer-link { color: var(--accent); font-weight: 650; text-decoration: none; }
+.footer-link:hover { text-decoration: underline; }
 @media (max-width: 380px) { .app { width: 100vw; } .actions { grid-template-columns: 1fr 1fr; } #translate { grid-column: 1 / -1; } }
 

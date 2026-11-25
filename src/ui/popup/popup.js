@@ -1,16 +1,21 @@
-import { getManifest, openOptionsPage, queryTabs, sendRuntimeMessage } from '../../shared/browser.js';
-import { applyI18n, t, UI_LOCALE } from '../../shared/i18n.js';
+import { getManifest, onPermissionsAdded, onPermissionsRemoved, openOptionsPage, queryTabs, reportClientError, sendRuntimeMessage } from '../../shared/browser.js';
+import { applyI18n, localizeDocument, setUiLocale, t } from '../../shared/i18n.js';
 import { loadSettings, normalizeSettings, resolveSitePolicy } from '../../shared/settings.js';
 import { isSupportedPageUrl, siteStateFromSettings } from '../../shared/urls.js';
-import { hasAllSitesPermission, requestAllSitesPermission } from '../../background/site-permissions.js';
+import { ALL_URLS, hasAllSitesPermission, requestAllSitesPermission } from '../../background/site-permissions.js';
 
 const $ = (selector) => document.querySelector(selector);
-const uiLocale = String(UI_LOCALE || 'en');
-const rtlLocale = /^(ar|ckb|dv|fa|he|ks|ku|ps|sd|ug|ur|yi)(-|$)/i.test(uiLocale);
-document.documentElement.lang = uiLocale;
-document.documentElement.dir = rtlLocale ? 'rtl' : 'ltr';
-applyI18n(document);
-document.title = t('Local LLM Translator Pro');
+const STATUS_TIMEOUT_MS = 3500;
+let settings = normalizeSettings(null);
+
+function applyDocumentLocale() {
+  setUiLocale(settings.appearance?.uiLocale ?? null);
+  localizeDocument(document);
+  applyI18n(document);
+  document.title = t('Local LLM Translator Pro');
+}
+
+applyDocumentLocale();
 
 const ui = {
   title: $('#page-title'), url: $('#page-url'), dot: $('#state-dot'), label: $('#state-label'), detail: $('#state-detail'),
@@ -21,13 +26,36 @@ const ui = {
   provider: $('#provider'), providerNote: $('#provider-note'), error: $('#error'), version: $('#version')
 };
 
-let settings = normalizeSettings(null);
 let tab = null;
 let permissionGranted = false;
 let permitted = false;
 let siteState = null;
 let pollTimer = null;
 let busy = false;
+let refreshPromise = null;
+
+function withTimeout(promise, timeoutMs = STATUS_TIMEOUT_MS) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Status request timed out.')), timeoutMs);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
+async function sendStatusMessage(message, fallback) {
+  try {
+    return await withTimeout(sendRuntimeMessage(message));
+  } catch {
+    return fallback;
+  }
+}
+
+function isPermissionError(value) {
+  if (!value) return false;
+  if (value.permissionRequired === true || value.code === 'permission-required') return true;
+  const text = typeof value === 'string' ? value : String(value.error ?? value.message ?? '');
+  return /website access is required|allow all sites|site access required/i.test(text);
+}
 
 function showError(value) {
   ui.error.hidden = !value;
@@ -36,13 +64,15 @@ function showError(value) {
 
 function setState(status, detail = '') {
   ui.dot.className = `dot ${status}`;
-  const statusLabel = status === 'translating'
-    ? t('Translating')
-    : status === 'complete'
-      ? t('Translated')
-      : status === 'error'
-        ? t('Needs attention')
-        : t('Ready');
+  const statusLabel = status === 'checking'
+    ? t('Checking…')
+    : status === 'translating'
+      ? t('Translating')
+      : status === 'complete'
+        ? t('Translated')
+        : status === 'error'
+          ? t('Needs attention')
+          : t('Ready');
   ui.label.textContent = statusLabel;
   ui.detail.textContent = detail;
 }
@@ -104,39 +134,60 @@ async function currentTab() {
   return null;
 }
 
-async function refresh() {
-  tab = await currentTab();
-  settings = await loadSettings();
+async function refreshInternal() {
+  setState('checking');
+  showError('');
+  try {
+    tab = await withTimeout(currentTab());
+  } catch {
+    tab = null;
+  }
   ui.tabSupported = Boolean(tab?.url && isSupportedPageUrl(tab.url));
   ui.title.textContent = tab?.title || t('No active page');
   ui.url.textContent = tab?.url || '—';
   ui.version.textContent = `v${getManifest().version}`;
-  renderProvider();
   if (!ui.tabSupported) {
     permissionGranted = false;
     permitted = false;
     siteState = null;
     renderPermission();
-    setState('idle', t('Unsupported browser page.'));
     updateProgress({ state: 'idle', done: 0, total: 0 });
+    setState('idle', tab ? t('Unsupported browser page.') : t('No active page'));
     return;
   }
-  try { permissionGranted = await hasAllSitesPermission(); } catch { permissionGranted = false; }
+
+  const settingsPromise = withTimeout(loadSettings()).catch(() => normalizeSettings(null));
   try {
-    const stateMessage = await sendRuntimeMessage({ type: 'get-site-state', url: tab.url });
-    siteState = stateMessage?.ok ? stateMessage : siteStateFromSettings(settings, tab.url, permissionGranted);
+    permissionGranted = Boolean(await withTimeout(hasAllSitesPermission()));
   } catch {
-    siteState = siteStateFromSettings(settings, tab.url, permissionGranted);
+    permissionGranted = false;
   }
+  settings = await settingsPromise;
+  applyDocumentLocale();
+  renderProvider();
+  if (!permissionGranted) {
+    permitted = false;
+    siteState = null;
+    renderPermission();
+    updateProgress({ state: 'idle', done: 0, total: 0 });
+    setState('error', t('Site access required'));
+    renderMode();
+    return;
+  }
+
+  const stateMessage = await sendStatusMessage({ type: 'get-site-state', url: tab.url }, null);
+  siteState = stateMessage?.ok ? stateMessage : siteStateFromSettings(settings, tab.url, permissionGranted);
   permitted = permissionGranted && Boolean(siteState?.enabled);
   renderPermission();
   renderMode();
-  try {
-    const progress = await sendRuntimeMessage({ type: 'get-progress', url: tab.url, tabId: tab.id });
-    updateProgress(progress);
-  } catch {
-    updateProgress({ state: 'idle', done: 0, total: 0 });
-  }
+  const progress = await sendStatusMessage({ type: 'get-progress', url: tab.url, tabId: tab.id }, null);
+  updateProgress(progress ?? { state: 'idle', done: 0, total: 0 });
+}
+
+function refresh() {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = refreshInternal().finally(() => { refreshPromise = null; });
+  return refreshPromise;
 }
 
 async function enableSite() {
@@ -148,12 +199,17 @@ async function enableSite() {
     if (!permissionGranted) {
       const granted = await requestAllSitesPermission();
       if (!granted) {
+        permissionGranted = false;
+        permitted = false;
+        renderPermission();
+        setState('error', t('Site access required'));
         showError(t('Site permission was not granted.'));
         return false;
       }
       permissionGranted = true;
     }
     settings = await loadSettings();
+    applyDocumentLocale();
     settings.behaviour.allSitesEnabled = true;
     const saved = await sendRuntimeMessage({ type: 'save-settings', settings });
     if (!saved?.ok) throw new Error(saved?.error || t('Save failed: {error}', { error: t('unknown') }));
@@ -168,6 +224,11 @@ async function enableSite() {
     await refresh();
     return true;
   } catch (error) {
+    if (!permissionGranted) {
+      permitted = false;
+      renderPermission();
+      setState('error', t('Site access required'));
+    }
     showError(error instanceof Error ? error.message : String(error));
     return false;
   } finally {
@@ -179,6 +240,18 @@ async function enableSite() {
 
 async function setMode(mode) {
   if (!tab?.url || busy) return;
+  try {
+    permissionGranted = Boolean(await withTimeout(hasAllSitesPermission()));
+  } catch {
+    permissionGranted = false;
+  }
+  if (!permissionGranted) {
+    permitted = false;
+    siteState = null;
+    renderPermission();
+    setState('error', t('Site access required'));
+    return;
+  }
   if (!permitted) {
     const enabled = await enableSite();
     if (!enabled) return;
@@ -186,9 +259,18 @@ async function setMode(mode) {
   busy = true;
   try {
     const response = await sendRuntimeMessage({ type: 'set-site-mode', url: tab.url, mode });
-    if (!response?.ok) throw new Error(response?.error || t('Could not update site mode.'));
+    if (!response?.ok) {
+      if (isPermissionError(response)) {
+        permissionGranted = false;
+        permitted = false;
+        renderPermission();
+        setState('error', t('Site access required'));
+      }
+      throw new Error(response?.error || t('Could not update site mode.'));
+    }
     siteState = response;
     settings = await loadSettings();
+    applyDocumentLocale();
     renderMode();
     renderPermission();
   } catch (error) {
@@ -201,6 +283,18 @@ async function setMode(mode) {
 
 async function translate() {
   if (!tab?.url || busy) return;
+  try {
+    permissionGranted = Boolean(await withTimeout(hasAllSitesPermission()));
+  } catch {
+    permissionGranted = false;
+  }
+  if (!permissionGranted) {
+    permitted = false;
+    siteState = null;
+    renderPermission();
+    setState('error', t('Site access required'));
+    return;
+  }
   if (!permitted) {
     const enabled = await enableSite();
     if (!enabled) return;
@@ -209,7 +303,15 @@ async function translate() {
   showError('');
   try {
     const response = await sendRuntimeMessage({ type: 'translate-page', url: tab.url, tabId: tab.id });
-    if (response?.error) throw new Error(response.error);
+    if (response?.error) {
+      if (isPermissionError(response)) {
+        permissionGranted = false;
+        permitted = false;
+        renderPermission();
+        setState('error', t('Site access required'));
+      }
+      throw new Error(response.error);
+    }
     setState('translating', t('Starting…'));
     await refresh();
   } catch (error) {
@@ -235,15 +337,36 @@ ui.translate.addEventListener('click', translate);
 ui.stop.addEventListener('click', stop);
 ui.revert.addEventListener('click', revert);
 ui.settings.addEventListener('click', () => openOptionsPage());
-ui.openSiteSettings.addEventListener('click', () => openOptionsPage());
+ui.openSiteSettings.addEventListener('click', () => openOptionsPage('sites'));
 ui.modeControl.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-mode]');
   if (button) setMode(button.dataset.mode);
 });
 
-refresh().catch((error) => showError(error instanceof Error ? error.message : String(error)));
+refresh().catch((error) => {
+  reportClientError('popup', error, { phase: 'refresh' });
+  permissionGranted = false;
+  permitted = false;
+  siteState = null;
+  renderPermission();
+  updateProgress({ state: 'idle', done: 0, total: 0 });
+  setState('error', t('Site access required'));
+  showError(error instanceof Error ? error.message : String(error));
+});
 pollTimer = setInterval(() => {
-  if (!tab?.url || busy) return;
-  sendRuntimeMessage({ type: 'get-progress', url: tab.url, tabId: tab.id }).then(updateProgress).catch(() => {});
+  if (!tab?.url || busy || !permissionGranted) return;
+  sendStatusMessage({ type: 'get-progress', url: tab.url, tabId: tab.id }, null).then((progress) => {
+    if (progress) updateProgress(progress);
+  });
 }, 750);
+window.addEventListener('focus', () => {
+  if (busy || document.visibilityState === 'hidden') return;
+  refresh().catch(() => {});
+});
 window.addEventListener('pagehide', () => clearInterval(pollTimer), { once: true });
+window.addEventListener('error', (event) => {
+  reportClientError('popup', event.error || event.message, { phase: 'window-error', filename: event.filename, lineno: event.lineno, colno: event.colno });
+});
+window.addEventListener('unhandledrejection', (event) => {
+  reportClientError('popup', event.reason, { phase: 'unhandled-rejection' });
+});

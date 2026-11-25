@@ -6,6 +6,8 @@
  * English source text; missing entries fall back to English automatically.
  */
 
+import { getUILanguage } from './browser.js';
+import { SUPPORTED_LOCALES } from './settings.js';
 import en from './locales/en.js';
 import zhTW from './locales/zh-TW.js';
 import zhCN from './locales/zh-CN.js';
@@ -29,30 +31,32 @@ import ur from './locales/ur.js';
 import fa from './locales/fa.js';
 import sw from './locales/sw.js';
 
-export const SUPPORTED_LOCALES = Object.freeze([
-  'en',
-  'zh-TW',
-  'zh-CN',
-  'ja',
-  'ko',
-  'pt',
-  'es',
-  'fr',
-  'de',
-  'it',
-  'el',
-  'th',
-  'id',
-  'hi',
-  'ru',
-  'ar',
-  'tr',
-  'vi',
-  'bn',
-  'ur',
-  'fa',
-  'sw'
-]);
+export { SUPPORTED_LOCALES } from './settings.js';
+
+export const LOCALE_LABELS = Object.freeze({
+  en: 'English',
+  'zh-TW': '繁體中文',
+  'zh-CN': '简体中文',
+  ja: '日本語',
+  ko: '한국어',
+  pt: 'Português',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
+  it: 'Italiano',
+  el: 'Ελληνικά',
+  th: 'ไทย',
+  id: 'Bahasa Indonesia',
+  hi: 'हिन्दी',
+  ru: 'Русский',
+  ar: 'العربية',
+  tr: 'Türkçe',
+  vi: 'Tiếng Việt',
+  bn: 'বাংলা',
+  ur: 'اردو',
+  fa: 'فارسی',
+  sw: 'Kiswahili'
+});
 
 const CATALOGS = Object.freeze({
   en,
@@ -82,10 +86,18 @@ const CATALOGS = Object.freeze({
 const SUPPORTED_LOCALE_SET = new Set(SUPPORTED_LOCALES);
 const RTL_LOCALES = new Set(['ar', 'fa', 'ur']);
 const PLACEHOLDER_PATTERN = /\{([a-zA-Z][a-zA-Z0-9_]*)\}/g;
+let activeUiLocale = null;
 
 function browserLanguageCandidates() {
-  if (typeof navigator === 'undefined') return [];
   const candidates = [];
+  try {
+    const language = getUILanguage();
+    if (typeof language === 'string' && language.trim()) candidates.push(language.trim());
+  } catch {
+    // Browser language APIs can be unavailable during static initialization.
+  }
+
+  if (typeof navigator === 'undefined') return candidates;
   const languages = navigator.languages;
 
   if (languages && typeof languages.length === 'number') {
@@ -95,7 +107,7 @@ function browserLanguageCandidates() {
   return candidates;
 }
 
-function resolveLocale(candidate) {
+export function resolveSupportedLocale(candidate) {
   if (typeof candidate !== 'string') return null;
 
   const subtags = candidate.trim().replace(/_/g, '-').split('-').filter(Boolean);
@@ -116,15 +128,44 @@ function resolveLocale(candidate) {
   return SUPPORTED_LOCALE_SET.has(language) ? language : null;
 }
 
-function resolveUiLocale() {
+export function getBrowserUiLanguage() {
+  return browserLanguageCandidates()[0] || 'en';
+}
+
+function resolveBrowserUiLocale() {
   for (const candidate of browserLanguageCandidates()) {
-    const locale = resolveLocale(candidate);
+    const locale = resolveSupportedLocale(candidate);
     if (locale) return locale;
   }
   return 'en';
 }
 
-export const UI_LOCALE = resolveUiLocale();
+/**
+ * Resolve the active display locale.
+ * An explicit settings.appearance.uiLocale wins; null/undefined falls back to
+ * the browser UI language, then English.
+ */
+export function getUiLocale(settings = null) {
+  const configured = settings && typeof settings === 'object'
+    ? settings.appearance?.uiLocale
+    : undefined;
+  if (configured !== undefined) {
+    if (configured === null || configured === '') return resolveBrowserUiLocale();
+    return resolveSupportedLocale(configured) ?? resolveBrowserUiLocale();
+  }
+  return activeUiLocale ?? resolveBrowserUiLocale();
+}
+
+/** Set the active locale for callers that already loaded settings. */
+export function setUiLocale(locale) {
+  activeUiLocale = locale === null || locale === undefined || locale === ''
+    ? null
+    : resolveSupportedLocale(locale);
+  return getUiLocale();
+}
+
+/** Kept for compatibility; use getUiLocale() when reacting to setting changes. */
+export const UI_LOCALE = getUiLocale();
 
 function replaceParameters(message, params) {
   const values = params && typeof params === 'object' ? params : {};
@@ -138,9 +179,12 @@ function replaceParameters(message, params) {
  * represented by the source string itself). Parameter values are converted to
  * strings; missing parameter values remain visible as {placeholders}.
  */
-export function t(source, params = {}) {
+export function translateForLocale(locale, source, params = {}) {
   const key = typeof source === 'string' ? source : String(source ?? '');
-  const catalogue = CATALOGS[UI_LOCALE];
+  const resolvedLocale = locale === null || locale === undefined || locale === ''
+    ? resolveBrowserUiLocale()
+    : resolveSupportedLocale(locale) ?? 'en';
+  const catalogue = CATALOGS[resolvedLocale];
   const translated = catalogue && typeof catalogue === 'object' ? catalogue[key] : undefined;
   const englishCatalogue = CATALOGS.en;
   const english = englishCatalogue && typeof englishCatalogue === 'object' ? englishCatalogue[key] : undefined;
@@ -151,6 +195,10 @@ export function t(source, params = {}) {
       : key;
 
   return replaceParameters(message, params);
+}
+
+export function t(source, params = {}) {
+  return translateForLocale(getUiLocale(), source, params);
 }
 
 function elementsIn(root) {
@@ -175,30 +223,30 @@ function elementsIn(root) {
  * - data-i18n-aria-label: aria-label attribute
  * - data-i18n-placeholder: placeholder attribute
  */
-export function applyI18n(root = document) {
+export function applyI18n(root = document, locale = getUiLocale()) {
   for (const element of elementsIn(root)) {
     const textKey = element.getAttribute('data-i18n');
-    if (textKey !== null) element.textContent = t(textKey);
+    if (textKey !== null) element.textContent = translateForLocale(locale, textKey);
 
     const titleKey = element.getAttribute('data-i18n-title');
-    if (titleKey !== null) element.setAttribute('title', t(titleKey));
+    if (titleKey !== null) element.setAttribute('title', translateForLocale(locale, titleKey));
 
     const ariaLabelKey = element.getAttribute('data-i18n-aria-label');
-    if (ariaLabelKey !== null) element.setAttribute('aria-label', t(ariaLabelKey));
+    if (ariaLabelKey !== null) element.setAttribute('aria-label', translateForLocale(locale, ariaLabelKey));
 
     const placeholderKey = element.getAttribute('data-i18n-placeholder');
-    if (placeholderKey !== null) element.setAttribute('placeholder', t(placeholderKey));
+    if (placeholderKey !== null) element.setAttribute('placeholder', translateForLocale(locale, placeholderKey));
   }
 }
 
 /** Set the document language and text direction metadata. */
-export function localizeDocument(root = document) {
+export function localizeDocument(root = document, locale = getUiLocale()) {
   const documentElement = root?.documentElement
     ?? (root?.nodeType === 1 && root.matches?.('html') ? root : null);
   if (!documentElement) return;
 
-  documentElement.lang = UI_LOCALE;
-  documentElement.dir = RTL_LOCALES.has(UI_LOCALE) ? 'rtl' : 'ltr';
+  documentElement.lang = locale;
+  documentElement.dir = RTL_LOCALES.has(locale) ? 'rtl' : 'ltr';
 }
 
 

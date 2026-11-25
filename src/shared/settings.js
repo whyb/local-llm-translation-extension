@@ -1,10 +1,11 @@
 import { storageGet, storageSet, onStorageChanged } from './browser.js';
 import { DEFAULT_TARGET_LANGUAGE } from './languages.js';
 import { DEFAULT_PROMPT_TEMPLATES, LEGACY_PROMPT_TEMPLATES, PROMPT_CONTRACT_VERSION } from './prompt.js';
+import { DEFAULT_ERROR_LOG_LEVEL, DEFAULT_ERROR_RETENTION_DAYS, ERROR_LOG_LEVELS } from './error-log.js';
 
 export const APP_VERSION = '2.0.3';
 export const SETTINGS_KEY = 'lbt.settings';
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 4;
 export const PROMPT_VERSION = PROMPT_CONTRACT_VERSION;
 export const ALL_URLS = '<all_urls>';
 
@@ -24,9 +25,31 @@ export const SITE_POLICIES = ['auto', 'ask', 'never'];
 export const STRUCTURED_OUTPUT_MODES = ['auto', 'json_schema', 'json_object', 'prompt-only'];
 export const REASONING_MODES = ['off', 'default', 'custom'];
 export const REASONING_EFFORTS = ['off', 'low', 'medium', 'high', 'max'];
-export const GLOW_STYLES = ['text-glow', 'subtle-tint', 'shimmer', 'none'];
-export const FRESH_STYLES = ['pop', 'fade'];
 export const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+export const SUPPORTED_LOCALES = Object.freeze([
+  'en',
+  'zh-TW',
+  'zh-CN',
+  'ja',
+  'ko',
+  'pt',
+  'es',
+  'fr',
+  'de',
+  'it',
+  'el',
+  'th',
+  'id',
+  'hi',
+  'ru',
+  'ar',
+  'tr',
+  'vi',
+  'bn',
+  'ur',
+  'fa',
+  'sw'
+]);
 
 export const TRACKING_PARAMS = [
   'utm_*', 'fbclid', 'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid', 'msclkid',
@@ -163,7 +186,7 @@ export const DEFAULT_SETTINGS = {
     streamingCommit: true,
     runaway: {
       enabled: true,
-      pageUnitCeiling: 500,
+      pageUnitCeiling: 100000,
       perMinuteTokenCeiling: 60000,
       responseExpansionRatio: 2,
       responseMinOutputTokens: 256,
@@ -175,27 +198,16 @@ export const DEFAULT_SETTINGS = {
     contentMemory: { maxRetainedOriginals: 5000 }
   },
   appearance: {
-    glow: {
-      enabled: true,
-      pendingColor: '#7aa2f7',
-      freshColor: '#9ece6a',
-      cooldownMs: 1200,
-      pendingStyle: 'text-glow',
-      freshStyle: 'pop',
-      reducedIntensity: false
-    },
+    uiLocale: null,
     floatingButtonEnabled: true,
     floatingButtonCorner: 'bottom-right',
-    selectionButtonEnabled: true,
-    hudEnabled: false
+    selectionButtonEnabled: true
   },
   behaviour: {
     autoTranslateDefault: 'ask',
     allSitesEnabled: false,
     hotkeys: {
-      translatePage: null,
       translateSelection: null,
-      revert: null,
       toggleRenderMode: null
     },
     siteRules: [],
@@ -216,18 +228,9 @@ export const DEFAULT_SETTINGS = {
     attributes: { ...ATTRIBUTE_DEFAULTS },
     language: { inheritPageLanguage: true }
   },
-  robustness: {
-    hostilePage: {
-      enabled: true,
-      echoWindowMs: 400,
-      maxEchoCycles: 8,
-      cycleWindowMs: 10000,
-      maxRemovedNodes: 200,
-      guardStylesheet: true,
-      stylesheetRecheckMs: 1000
-    },
-    runKeepAlive: { enabled: true, intervalMs: 12000 },
-    verboseLogging: false
+  diagnostics: {
+    errorLogLevel: DEFAULT_ERROR_LOG_LEVEL,
+    errorRetentionDays: DEFAULT_ERROR_RETENTION_DAYS
   }
 };
 
@@ -373,6 +376,8 @@ function normalizePromptTemplates(translation) {
 export function normalizeSettings(raw) {
   const input = isObject(raw) ? raw : {};
   const d = DEFAULT_SETTINGS;
+  const legacySettings = !Number.isFinite(input.version) || input.version < SETTINGS_VERSION;
+  const legacyDefaultPageCeiling = legacySettings && [500, 5000].includes(Number(input.speed?.runaway?.pageUnitCeiling));
   const profiles = Array.isArray(input.providers?.profiles)
     ? input.providers.profiles.map((profile, index) => normalizeProfile(profile, index, index === 0 ? 'primary' : 'fallback'))
     : d.providers.profiles.map((profile) => ({ ...profile, reasoning: { ...profile.reasoning } }));
@@ -473,7 +478,10 @@ export function normalizeSettings(raw) {
       streamingCommit: boolOr(input.speed?.streamingCommit, d.speed.streamingCommit),
       runaway: {
         enabled: boolOr(input.speed?.runaway?.enabled, d.speed.runaway.enabled),
-        pageUnitCeiling: Math.max(0, Math.floor(numberOr(input.speed?.runaway?.pageUnitCeiling, d.speed.runaway.pageUnitCeiling))),
+        pageUnitCeiling: Math.min(100000, Math.max(0, Math.floor(numberOr(
+          legacyDefaultPageCeiling ? d.speed.runaway.pageUnitCeiling : input.speed?.runaway?.pageUnitCeiling,
+          d.speed.runaway.pageUnitCeiling
+        )))),
         perMinuteTokenCeiling: Math.max(0, Math.floor(numberOr(input.speed?.runaway?.perMinuteTokenCeiling, d.speed.runaway.perMinuteTokenCeiling))),
         responseExpansionRatio: Math.max(1, numberOr(input.speed?.runaway?.responseExpansionRatio, d.speed.runaway.responseExpansionRatio)),
         responseMinOutputTokens: Math.max(0, Math.floor(numberOr(input.speed?.runaway?.responseMinOutputTokens, d.speed.runaway.responseMinOutputTokens))),
@@ -485,27 +493,16 @@ export function normalizeSettings(raw) {
       contentMemory: { maxRetainedOriginals: Math.max(100, Math.floor(numberOr(input.speed?.contentMemory?.maxRetainedOriginals, d.speed.contentMemory.maxRetainedOriginals))) }
     },
     appearance: {
-      glow: {
-        enabled: boolOr(input.appearance?.glow?.enabled, d.appearance.glow.enabled),
-        pendingColor: stringOr(input.appearance?.glow?.pendingColor, d.appearance.glow.pendingColor),
-        freshColor: stringOr(input.appearance?.glow?.freshColor, d.appearance.glow.freshColor),
-        cooldownMs: Math.max(0, Math.floor(numberOr(input.appearance?.glow?.cooldownMs, d.appearance.glow.cooldownMs))),
-        pendingStyle: enumOr(input.appearance?.glow?.pendingStyle, GLOW_STYLES, d.appearance.glow.pendingStyle),
-        freshStyle: enumOr(input.appearance?.glow?.freshStyle, FRESH_STYLES, d.appearance.glow.freshStyle),
-        reducedIntensity: boolOr(input.appearance?.glow?.reducedIntensity, false)
-      },
+      uiLocale: enumOr(input.appearance?.uiLocale, SUPPORTED_LOCALES, null),
       floatingButtonEnabled: boolOr(input.appearance?.floatingButtonEnabled, true),
       floatingButtonCorner: enumOr(input.appearance?.floatingButtonCorner, CORNERS, d.appearance.floatingButtonCorner),
-      selectionButtonEnabled: boolOr(input.appearance?.selectionButtonEnabled, true),
-      hudEnabled: boolOr(input.appearance?.hudEnabled, false)
+      selectionButtonEnabled: boolOr(input.appearance?.selectionButtonEnabled, true)
     },
     behaviour: {
       autoTranslateDefault: enumOr(input.behaviour?.autoTranslateDefault, SITE_POLICIES, d.behaviour.autoTranslateDefault),
       allSitesEnabled: boolOr(input.behaviour?.allSitesEnabled, false),
       hotkeys: {
-        translatePage: nullableString(input.behaviour?.hotkeys?.translatePage),
         translateSelection: nullableString(input.behaviour?.hotkeys?.translateSelection),
-        revert: nullableString(input.behaviour?.hotkeys?.revert),
         toggleRenderMode: nullableString(input.behaviour?.hotkeys?.toggleRenderMode)
       },
       siteRules: normalizeSiteRules(input.behaviour?.siteRules),
@@ -535,21 +532,9 @@ export function normalizeSettings(raw) {
       },
       language: { inheritPageLanguage: boolOr(input.exclusions?.language?.inheritPageLanguage, true) }
     },
-    robustness: {
-      hostilePage: {
-        enabled: boolOr(input.robustness?.hostilePage?.enabled, true),
-        echoWindowMs: Math.max(0, Math.floor(numberOr(input.robustness?.hostilePage?.echoWindowMs, d.robustness.hostilePage.echoWindowMs))),
-        maxEchoCycles: Math.max(0, Math.floor(numberOr(input.robustness?.hostilePage?.maxEchoCycles, d.robustness.hostilePage.maxEchoCycles))),
-        cycleWindowMs: Math.max(100, Math.floor(numberOr(input.robustness?.hostilePage?.cycleWindowMs, d.robustness.hostilePage.cycleWindowMs))),
-        maxRemovedNodes: Math.max(0, Math.floor(numberOr(input.robustness?.hostilePage?.maxRemovedNodes, d.robustness.hostilePage.maxRemovedNodes))),
-        guardStylesheet: boolOr(input.robustness?.hostilePage?.guardStylesheet, true),
-        stylesheetRecheckMs: Math.max(100, Math.floor(numberOr(input.robustness?.hostilePage?.stylesheetRecheckMs, d.robustness.hostilePage.stylesheetRecheckMs)))
-      },
-      runKeepAlive: {
-        enabled: boolOr(input.robustness?.runKeepAlive?.enabled, true),
-        intervalMs: Math.max(1000, Math.floor(numberOr(input.robustness?.runKeepAlive?.intervalMs, d.robustness.runKeepAlive.intervalMs)))
-      },
-      verboseLogging: boolOr(input.robustness?.verboseLogging, false)
+    diagnostics: {
+      errorLogLevel: enumOr(input.diagnostics?.errorLogLevel, ERROR_LOG_LEVELS, d.diagnostics.errorLogLevel),
+      errorRetentionDays: Math.min(90, Math.max(1, Math.floor(numberOr(input.diagnostics?.errorRetentionDays, d.diagnostics.errorRetentionDays))))
     }
   };
 }
@@ -585,7 +570,6 @@ export function sanitizeSettingsForContent(settings) {
     appearance: normalized.appearance,
     behaviour: normalized.behaviour,
     exclusions: normalized.exclusions,
-    robustness: normalized.robustness,
     cache: { urlNormalisation: normalized.cache.urlNormalisation }
   };
 }

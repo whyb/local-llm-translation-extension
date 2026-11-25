@@ -66,6 +66,12 @@ test('floating button exposes a circular progress track and percentage state', a
   assert.match(source, /getURL\('src\/assets\/icon-128\.png'\)/);
   assert.match(source, /lbt-fab-logo/);
   assert.match(source, /lbt-fab-badge/);
+  assert.match(source, /updateProgressVisuals\(\)/);
+  assert.match(source, /setProgress\(done, total, cacheHitRate/);
+  assert.match(source, /lbt-mode-control/);
+  assert.match(source, /refreshSiteState\(\)/);
+  assert.match(source, /type: 'set-site-mode'/);
+  assert.doesNotMatch(source, /Automatically translate new content/);
 });
 
 test('hover reveal mode uses a tooltip without changing page layout', async () => {
@@ -126,15 +132,14 @@ test('floating panel closes on outside pointer input', async () => {
   assert.match(source, /this\.panel\.hidden = true/);
 });
 
-test('appearance page has four preview sections and keeps glow style controls', async () => {
+test('appearance page keeps language, floating and selection previews', async () => {
   const source = await read('../src/ui/options/appearance.js');
-  for (const title of ['Floating button', 'Selection button', 'Performance HUD', 'Glow feedback']) {
+  for (const title of ['Language options', 'Floating button', 'Selection button']) {
     assert.equal(source.includes(`card('${title}'`), true);
   }
-  assert.match(source, /Pending style/);
-  assert.match(source, /Fresh style/);
+  assert.doesNotMatch(source, /Performance HUD|Glow feedback|Pending style|Fresh style/);
   assert.match(source, /appearance-preview/);
-  assert.match(source, /import \{ t \}/);
+  assert.match(source, /\bt\b/);
 });
 
 

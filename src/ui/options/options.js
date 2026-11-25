@@ -1,5 +1,5 @@
-import { getManifest, sendRuntimeMessage } from '../../shared/browser.js';
-import { applyI18n, localizeDocument, t } from '../../shared/i18n.js';
+import { getManifest, reportClientError, sendRuntimeMessage } from '../../shared/browser.js';
+import { applyI18n, localizeDocument, setUiLocale, t } from '../../shared/i18n.js';
 import { loadSettings, normalizeSettings, saveSettings } from '../../shared/settings.js';
 import { renderProviders } from './providers.js';
 import { renderTranslation } from './translation.js';
@@ -8,7 +8,6 @@ import { renderSpeed } from './speed.js';
 import { renderAppearance } from './appearance.js';
 import { renderSites } from './sites.js';
 import { renderExclusions } from './exclusions.js';
-import { renderRobustness } from './robustness.js';
 import { renderDiagnostics } from './diagnostics.js';
 import { renderAbout } from './about.js';
 
@@ -29,7 +28,6 @@ const SECTION_META = {
   appearance: ['APPEARANCE', 'Appearance', 'Make the in-page controls useful without taking over the page.'],
   sites: ['SITES', 'Sites', 'Grant access deliberately. Permission alone never turns a site on.'],
   exclusions: ['EXCLUSIONS', 'Exclusions', 'Decide what must never reach the model.'],
-  robustness: ['ROBUSTNESS', 'Robustness', 'Protect difficult pages and long-running translations.'],
   diagnostics: ['DIAGNOSTICS', 'Diagnostics', 'Observe actual runs, cache health and failures.'],
   about: ['ABOUT', 'About', 'Meet the author and explore the project.']
 };
@@ -42,19 +40,21 @@ const renderers = {
   appearance: renderAppearance,
   sites: renderSites,
   exclusions: renderExclusions,
-  robustness: renderRobustness,
   diagnostics: renderDiagnostics,
   about: renderAbout
 };
 
 let settings = normalizeSettings(null);
-let activeSection = location.hash.replace(/^#/, '') || 'providers';
-if (!SECTION_META[activeSection]) activeSection = 'providers';
+const requestedSection = location.hash.replace(/^#/, '');
+let activeSection = SECTION_META[requestedSection] ? requestedSection : 'providers';
+if (location.hash !== `#${activeSection}`) history.replaceState(null, '', `#${activeSection}`);
 let dirty = false;
 
-localizeDocument(document);
-document.title = t('Local LLM Translator Pro — Settings');
-applyI18n(document);
+function applyDocumentLocale() {
+  localizeDocument(document);
+  document.title = t('Local LLM Translator Pro — Settings');
+  applyI18n(document);
+}
 
 function markDirty() {
   dirty = true;
@@ -92,7 +92,10 @@ function render() {
   content.replaceChildren();
   const result = renderers[activeSection]?.(context());
   if (result && typeof result.catch === 'function') {
-    result.catch((error) => content.append(Object.assign(document.createElement('div'), { className: 'error', textContent: t('Could not render this section: {error}', { error: error.message }) })));
+    result.catch((error) => {
+      reportClientError('options', error, { phase: 'render', section: activeSection });
+      content.append(Object.assign(document.createElement('div'), { className: 'error', textContent: t('Could not render this section: {error}', { error: error.message }) }));
+    });
   }
 }
 
@@ -100,6 +103,8 @@ async function save(showMessage = true) {
   saveButton.disabled = true;
   try {
     settings = normalizeSettings(await saveSettings(settings));
+    setUiLocale(settings.appearance?.uiLocale ?? null);
+    applyDocumentLocale();
     markSaved();
     // The options page owns the write. Notify the background for site-script
     // synchronization, but never make the dialog wait on the message channel.
@@ -109,6 +114,7 @@ async function save(showMessage = true) {
     if (showMessage) render();
     return true;
   } catch (error) {
+    reportClientError('options', error, { phase: 'save' });
     saveStatus.textContent = t('Save failed: {error}', { error: error instanceof Error ? error.message : String(error) });
     saveStatus.className = 'save-status dirty';
     return false;
@@ -126,7 +132,11 @@ nav.addEventListener('click', (event) => {
 });
 window.addEventListener('hashchange', () => {
   const next = location.hash.replace(/^#/, '');
-  if (SECTION_META[next] && next !== activeSection) { activeSection = next; render(); }
+  if (!SECTION_META[next]) {
+    history.replaceState(null, '', `#${activeSection}`);
+    return;
+  }
+  if (next !== activeSection) { activeSection = next; render(); }
 });
 saveButton.addEventListener('click', () => save(true));
 window.addEventListener('beforeunload', (event) => {
@@ -137,7 +147,21 @@ window.addEventListener('beforeunload', (event) => {
 
 (async () => {
   settings = await loadSettings();
+  setUiLocale(settings.appearance?.uiLocale ?? null);
+  applyDocumentLocale();
   $('#version').textContent = `v${getManifest().version}`;
   markSaved();
   render();
-})().catch((error) => content.append(Object.assign(document.createElement('div'), { className: 'error', textContent: t('Failed to load settings: {error}', { error: error instanceof Error ? error.message : String(error) }) })));
+})().catch((error) => {
+  setUiLocale(null);
+  applyDocumentLocale();
+  reportClientError('options', error, { phase: 'load-settings' });
+  content.append(Object.assign(document.createElement('div'), { className: 'error', textContent: t('Failed to load settings: {error}', { error: error instanceof Error ? error.message : String(error) }) }));
+});
+
+window.addEventListener('error', (event) => {
+  reportClientError('options', event.error || event.message, { phase: 'window-error', filename: event.filename, lineno: event.lineno, colno: event.colno });
+});
+window.addEventListener('unhandledrejection', (event) => {
+  reportClientError('options', event.reason, { phase: 'unhandled-rejection' });
+});

@@ -1,18 +1,23 @@
 import {
-  action, extension, getAllPermissions, getTab, onCommand, onRuntimeConnect, onRuntimeMessage, onStorageChanged,
+  action, extension, getAllPermissions, getTab, getUILanguage, onCommand, onRuntimeMessage, onStorageChanged,
   onTabActivated, onTabRemoved, onTabUpdated, openOptionsPage, queryTabs,
-  runtime, sendTabMessage, storageClear
+  runtime, sendTabMessage, storageClear, storageGet, storageSet
 } from '../shared/browser.js';
+import { translateForLocale } from '../shared/i18n.js';
 import {
   ALL_URLS, domainMatches, loadSettings, normalizeSettings, resolveSiteTargetLang,
   saveSettings, sanitizeSettingsForContent, SETTINGS_KEY
 } from '../shared/settings.js';
-import { errorMessage, MESSAGE, RUN_PORT_NAME, runId as createRunId, validateContentMessage } from '../shared/messages.js';
+import { errorMessage, MESSAGE, runId as createRunId, validateContentMessage } from '../shared/messages.js';
 import { domainFromUrl, hostPatternForUrl, normalizeUrl, siteStateFromSettings as buildSiteState } from '../shared/urls.js';
 import { glossaryHash, makeTmKey, normalizeForLookup, stableHash } from '../shared/text.js';
 import { cacheStore, parseTm, recordSize, serializeTm } from './cache.js';
 import { primaryProfile, createAdapter, probeProfile, testConnection } from './providers/index.js';
 import { promptVersionForSettings, testTranslationPrompt, TranslationService } from './translator.js';
+import {
+  ERROR_LOG_KEY, errorFingerprint, normalizeErrorLevel, normalizeErrorRecord, pruneErrorLog,
+  sanitizeErrorText, sanitizeErrorUrl, shouldRecordError
+} from '../shared/error-log.js';
 import { PrefetchService } from './prefetch.js';
 import {
   activateSite, hasAllSitesPermission, hasSitePermission, injectIntoOpenTabs,
@@ -27,8 +32,13 @@ const state = {
   runs: new Map(),
   framesByTab: new Map(),
   autoStarted: new Set(),
-  permissionCleanup: null
+  permissionCleanup: null,
+  errorLogQueue: Promise.resolve()
 };
+
+const SEGMENT_DELIVERY_BATCH_SIZE = 80;
+const SEGMENT_DELIVERY_FLUSH_MS = 16;
+const PROGRESS_THROTTLE_MS = 100;
 
 function runMapKey(tabId, url) {
   return `${tabId}:${normalizeUrl(url, state.settings.cache.urlNormalisation)}`;
@@ -64,6 +74,43 @@ function contentDocumentKey(sender, message) {
   return String(message?.documentKey ?? sender?.documentId ?? '');
 }
 
+async function endpointPermissionRequired(profile) {
+  const baseUrl = typeof profile?.baseUrl === 'string' ? profile.baseUrl : '';
+  if (!baseUrl || !hostPatternForUrl(baseUrl)) return false;
+  return !await hasSitePermission(baseUrl);
+}
+
+function permissionRequiredResult(url) {
+  return {
+    ok: false,
+    code: 'permission-required',
+    permissionRequired: true,
+    error: 'Website access is required. Allow all sites from the popup or options page, then try again.',
+    url
+  };
+}
+
+async function broadcastPermissionRequired(reason = 'all-sites-removed') {
+  let tabs = [];
+  try { tabs = await queryTabs({}); } catch { return; }
+  await Promise.allSettled(tabs
+    .filter((tab) => Number.isInteger(tab.id))
+    .map((tab) => sendTabMessage(tab.id, {
+      type: MESSAGE.PERMISSION_REQUIRED,
+      reason,
+      permissionRequired: true,
+      allSites: true,
+      url: tab.url || ''
+    })));
+}
+
+function uiTranslationsResponse(message) {
+  const locale = message.locale ?? getUILanguage();
+  const keys = Array.isArray(message.keys) ? message.keys : [];
+  const translations = Object.fromEntries(keys.map((key) => [key, translateForLocale(locale, key)]));
+  return { ok: true, locale, translations };
+}
+
 function clearAutoStartedForTab(tabId) {
   const prefix = `${tabId}:`;
   for (const key of state.autoStarted) if (key.startsWith(prefix)) state.autoStarted.delete(key);
@@ -82,7 +129,7 @@ async function invalidateTabRuns(tabId, reason = 'navigation') {
   clearAutoStartedForTab(tabId);
   const entries = tabRuns(tabId);
   for (const [, run] of entries) {
-    clearRunSettlement(run);
+    clearRunTimers(run);
     try { run.controller.abort(new DOMException(reason, 'AbortError')); } catch { /* noop */ }
     run.state = 'idle';
     await broadcastRun(run, { type: MESSAGE.RUN_CANCEL, runId: run.runId, url: run.url, reason }).catch(() => {});
@@ -118,6 +165,35 @@ function sendToFrame(tabId, frameId, message) {
   return Promise.resolve();
 }
 
+function flushSegmentOutbox(run, frameState) {
+  if (!run || !frameState || run.controller.signal.aborted) return;
+  if (frameState.outboxTimer) clearTimeout(frameState.outboxTimer);
+  frameState.outboxTimer = null;
+  if (!frameState.outbox.size) return;
+  const segments = [];
+  for (const [unitId, segment] of frameState.outbox) {
+    segments.push(segment);
+    frameState.outbox.delete(unitId);
+    if (segments.length >= SEGMENT_DELIVERY_BATCH_SIZE) break;
+  }
+  sendToFrame(run.tabId, frameState.frameId, {
+    type: MESSAGE.SEGMENT_DELIVERY,
+    runId: run.runId,
+    documentKey: frameState.documentKey,
+    segments
+  });
+  if (frameState.outbox.size && !frameState.outboxTimer) {
+    frameState.outboxTimer = setTimeout(() => flushSegmentOutbox(run, frameState), 0);
+  }
+}
+
+function queueSegmentDelivery(run, frameState, payload) {
+  if (!run || !frameState || run.controller.signal.aborted) return;
+  frameState.outbox.set(payload.unitId, payload);
+  if (frameState.outboxTimer) return;
+  frameState.outboxTimer = setTimeout(() => flushSegmentOutbox(run, frameState), SEGMENT_DELIVERY_FLUSH_MS);
+}
+
 async function broadcastRun(run, message) {
   const frames = framesForTab(run.tabId);
   if (!frames.length) {
@@ -125,6 +201,23 @@ async function broadcastRun(run, message) {
     return;
   }
   await Promise.all(frames.map((frame) => sendToFrame(run.tabId, frame.frameId, message)));
+}
+
+function clearFrameDelivery(frameState) {
+  if (!frameState) return;
+  if (frameState.outboxTimer) clearTimeout(frameState.outboxTimer);
+  frameState.outboxTimer = null;
+  frameState.outbox?.clear();
+}
+
+function clearRunTimers(run) {
+  if (!run) return;
+  clearRunSettlement(run);
+  if (run.progressTimer) clearTimeout(run.progressTimer);
+  run.progressTimer = null;
+  for (const timer of run.primeTimers ?? []) clearTimeout(timer);
+  run.primeTimers = [];
+  for (const frameState of run.frames?.values?.() ?? []) clearFrameDelivery(frameState);
 }
 
 function clearRunSettlement(run) {
@@ -135,7 +228,16 @@ function clearRunSettlement(run) {
 
 function runQueuesDrained(run) {
   for (const frame of run.frames.values()) {
-    if (frame.processing || frame.pending.size) return false;
+    if (frame.processing || frame.pending.size || frame.outbox?.size) return false;
+  }
+  return true;
+}
+
+function runFullyApplied(run) {
+  for (const frame of run.frames.values()) {
+    for (const unitId of frame.current.keys()) {
+      if (frame.doneIds.has(unitId) && !frame.acknowledged.has(unitId)) return false;
+    }
   }
   return true;
 }
@@ -147,6 +249,13 @@ function scheduleRunSettlement(run) {
     run.settleTimer = null;
     if (run.state !== 'translating') return;
     if (!runQueuesDrained(run)) {
+      scheduleRunSettlement(run);
+      return;
+    }
+    if (!runFullyApplied(run)) {
+      if (Date.now() - Number(run.lastAckAt || 0) > 1500) {
+        for (const frameState of run.frames.values()) replayUnacknowledgedSegments(run, frameState);
+      }
       scheduleRunSettlement(run);
       return;
     }
@@ -163,12 +272,13 @@ function scheduleRunSettlement(run) {
 }
 
 function progressSummary(run) {
-  if (!run) return { state: 'idle', done: 0, total: 0, url: '', runId: null, notice: null };
+  if (!run) return { state: 'idle', done: 0, translated: 0, total: 0, url: '', runId: null, notice: null };
   return {
     state: run.state,
     done: run.done,
+    translated: run.translated ?? run.done,
     total: run.total,
-    pending: Math.max(0, run.total - run.done),
+    pending: Math.max(0, run.total - (run.translated ?? run.done)),
     url: run.url,
     runId: run.runId,
     origin: run.origin ?? (run.auto ? 'automatic' : 'manual'),
@@ -180,8 +290,23 @@ function progressSummary(run) {
 }
 
 function sendProgress(run) {
+  if (run.progressTimer) clearTimeout(run.progressTimer);
+  run.progressTimer = null;
+  run.lastProgressAt = Date.now();
   const summary = progressSummary(run);
   broadcastRun(run, { type: MESSAGE.PROGRESS_UPDATE, ...summary }).catch(() => {});
+}
+
+function sendProgressSoon(run) {
+  if (!run || run.progressTimer) return;
+  const elapsed = Date.now() - Number(run.lastProgressAt || 0);
+  const delay = Math.max(0, PROGRESS_THROTTLE_MS - elapsed);
+  run.progressTimer = setTimeout(() => {
+    run.progressTimer = null;
+    if (run.state === 'idle') return;
+    run.lastProgressAt = Date.now();
+    sendProgress(run);
+  }, delay);
 }
 
 function isEnabledForUrl(url) {
@@ -212,6 +337,8 @@ async function maybeAutoStart(tabId, url, { documentKey = '' } = {}) {
 }
 
 async function startRun(tabId, url, { profileRole = 'primary', auto = false, documentKey = '' } = {}) {
+  const profile = primaryProfile(state.settings, profileRole);
+  if (await endpointPermissionRequired(profile)) return permissionRequiredResult(url);
   const key = runMapKey(tabId, url);
   const existing = state.runs.get(key);
   if (existing && !['idle', 'complete', 'error', 'paused'].includes(existing.state)) return progressSummary(existing);
@@ -226,6 +353,7 @@ async function startRun(tabId, url, { profileRole = 'primary', auto = false, doc
     origin: auto ? 'automatic' : 'manual',
     state: 'translating',
     done: 0,
+    translated: 0,
     total: 0,
     pending: 0,
     cacheHits: 0,
@@ -234,6 +362,9 @@ async function startRun(tabId, url, { profileRole = 'primary', auto = false, doc
     frames: new Map(),
     controller: new AbortController(),
     settleTimer: null,
+    progressTimer: null,
+    lastProgressAt: 0,
+    lastAckAt: Date.now(),
     notice: null
   };
   state.runs.set(key, run);
@@ -259,7 +390,7 @@ function scheduleRunPriming(run) {
 async function stopRun(tabId, url, reason = 'stop', runId = null) {
   const run = getRun(tabId, url, runId);
   if (!run) return { ok: true, state: 'idle' };
-  clearRunSettlement(run);
+  clearRunTimers(run);
   try { run.controller.abort(new DOMException(reason, 'AbortError')); } catch { /* noop */ }
   run.state = 'idle';
   await broadcastRun(run, { type: MESSAGE.RUN_CANCEL, runId: run.runId, url: run.url, reason }).catch(() => {});
@@ -275,7 +406,7 @@ async function stopRun(tabId, url, reason = 'stop', runId = null) {
 async function revertRun(tabId, url, runId = null) {
   const run = getRun(tabId, url, runId);
   if (run) {
-    clearRunSettlement(run);
+    clearRunTimers(run);
     try { run.controller.abort(new DOMException('revert', 'AbortError')); } catch { /* noop */ }
     await broadcastRun(run, { type: MESSAGE.RUN_REVERT, runId: run.runId, url: run.url });
     const key = runMapKey(tabId, run.url);
@@ -332,15 +463,17 @@ async function lookupTmForQueries(url, queries) {
 
 function recalculateRunProgress(run) {
   run.total = 0;
+  run.translated = 0;
   run.done = 0;
   for (const frame of run.frames.values()) {
     for (const unitId of frame.current.keys()) {
       run.total += 1;
-      if (frame.doneIds.has(unitId)) run.done += 1;
+      if (frame.doneIds.has(unitId)) run.translated += 1;
+      if (frame.acknowledged.has(unitId)) run.done += 1;
     }
   }
-  run.pending = Math.max(0, run.total - run.done);
-  if (run.done < run.cacheHits) run.cacheHits = run.done;
+  run.pending = Math.max(0, run.total - run.translated);
+  if (run.translated < run.cacheHits) run.cacheHits = run.translated;
 }
 
 function queueFrameUnits(run, frameState, { force = false } = {}) {
@@ -362,12 +495,7 @@ function replayUnacknowledgedSegments(run, frameState) {
     if (segment) segments.push(segment);
   }
   if (!segments.length) return 0;
-  sendToFrame(run.tabId, frameState.frameId, {
-    type: MESSAGE.SEGMENT_DELIVERY,
-    runId: run.runId,
-    documentKey: frameState.documentKey,
-    segments
-  }).catch(() => {});
+  for (const segment of segments) queueSegmentDelivery(run, frameState, segment);
   return segments.length;
 }
 
@@ -394,27 +522,24 @@ async function processFrameQueue(run, frameState) {
           if (!current || !requested || current.text !== requested.text || current.kind !== requested.kind) return;
           if (!frameState.doneIds.has(segment.unitId)) {
             frameState.doneIds.add(segment.unitId);
-            run.done += 1;
-            run.pending = Math.max(0, run.total - run.done);
+            run.translated += 1;
+            run.pending = Math.max(0, run.total - run.translated);
             if (segment.hit) run.cacheHits += 1;
           }
           const payload = { unitId: segment.unitId, text: segment.text, kind: segment.kind ?? 'text', hit: Boolean(segment.hit), attribute: segment.attribute ?? null };
           frameState.segments.set(segment.unitId, payload);
-          sendToFrame(run.tabId, frameState.frameId, {
-            type: MESSAGE.SEGMENT_DELIVERY,
-            runId: run.runId,
-            documentKey: frameState.documentKey,
-            segments: [payload]
-          }).catch(() => {});
-          sendProgress(run);
+          queueSegmentDelivery(run, frameState, payload);
+          sendProgressSoon(run);
         },
-        onProgress: () => { if (run.state === 'translating') sendProgress(run); }
+        onProgress: () => { if (run.state === 'translating') sendProgressSoon(run); }
       });
       await savePageSnapshot(run.url, batch);
     }
   } catch (error) {
     if (!run.controller.signal.aborted) {
+      clearFrameDelivery(frameState);
       state.translator.logError(error);
+      recordBackgroundError(error, { phase: 'translation', tabId: run.tabId, url: run.url, runId: run.runId });
       run.state = 'error';
       run.notice = { severity: 'error', message: errorMessage(error) };
       sendProgress(run);
@@ -487,8 +612,16 @@ async function handleSegmentApplied(message, sender) {
   let acknowledged = 0;
   for (const unitId of message.unitIds) {
     if (!frameState.current.has(unitId) || !frameState.segments.has(unitId)) continue;
+    if (frameState.acknowledged.has(unitId)) continue;
     frameState.acknowledged.add(unitId);
+    run.done += 1;
     acknowledged += 1;
+  }
+  if (acknowledged) {
+    run.lastAckAt = Date.now();
+    recalculateRunProgress(run);
+    sendProgressSoon(run);
+    if (run.state === 'translating' && runQueuesDrained(run)) scheduleRunSettlement(run);
   }
   return { ok: true, acknowledged };
 }
@@ -513,7 +646,10 @@ async function handleUnitsReport(message, sender) {
   const documentKey = contentDocumentKey(sender, message);
   const key = frameKey(tabId, frameId);
   let frameState = run.frames.get(key);
-  if (frameState?.documentKey && documentKey && frameState.documentKey !== documentKey) frameState = null;
+  if (frameState?.documentKey && documentKey && frameState.documentKey !== documentKey) {
+    clearFrameDelivery(frameState);
+    frameState = null;
+  }
   if (!frameState) {
     frameState = {
       frameId,
@@ -523,12 +659,43 @@ async function handleUnitsReport(message, sender) {
       doneIds: new Set(),
       segments: new Map(),
       acknowledged: new Set(),
+      outbox: new Map(),
+      outboxTimer: null,
+      reportSnapshotId: '',
+      reportChunkCount: 0,
+      reportChunks: new Set(),
+      reportBuffer: new Map(),
       processing: false,
       initialized: false,
       inventoryRevision: -1,
       lastSnapshotAt: Date.now()
     };
     run.frames.set(key, frameState);
+  }
+  if (message.chunkCount !== undefined) {
+    const snapshotId = String(message.snapshotId || '');
+    if (!snapshotId || !Number.isInteger(message.chunkIndex) || !Number.isInteger(message.chunkCount) || message.chunkIndex >= message.chunkCount) {
+      return { ok: false, error: 'Invalid units-report chunk' };
+    }
+    if (frameState.reportSnapshotId !== snapshotId) {
+      frameState.reportSnapshotId = snapshotId;
+      frameState.reportChunkCount = message.chunkCount;
+      frameState.reportChunks = new Set();
+      frameState.reportBuffer = new Map();
+    }
+    for (const unit of message.units) {
+      if (unit && typeof unit.id === 'string' && typeof unit.text === 'string') frameState.reportBuffer.set(unit.id, unit);
+    }
+    frameState.reportChunks.add(message.chunkIndex);
+    if (frameState.reportChunks.size < frameState.reportChunkCount) {
+      return { ok: true, chunked: true, received: frameState.reportChunks.size, expected: frameState.reportChunkCount };
+    }
+    message.units = [...frameState.reportBuffer.values()];
+    message.snapshot = true;
+    frameState.reportSnapshotId = '';
+    frameState.reportChunkCount = 0;
+    frameState.reportChunks = new Set();
+    frameState.reportBuffer = new Map();
   }
   if (Number.isInteger(message.inventoryRevision) && message.inventoryRevision < frameState.inventoryRevision) {
     return { ok: true, staleSnapshot: true };
@@ -547,10 +714,16 @@ async function handleUnitsReport(message, sender) {
         frameState.pending.delete(unit.id);
         frameState.segments.delete(unit.id);
         frameState.acknowledged.delete(unit.id);
+        frameState.outbox.delete(unit.id);
       }
     }
     frameState.current = next;
-    for (const unitId of frameState.pending.keys()) if (!next.has(unitId)) frameState.pending.delete(unitId);
+    for (const collection of [frameState.pending, frameState.segments, frameState.outbox]) {
+      for (const unitId of collection.keys()) if (!next.has(unitId)) collection.delete(unitId);
+    }
+    for (const collection of [frameState.doneIds, frameState.acknowledged]) {
+      for (const unitId of collection) if (!next.has(unitId)) collection.delete(unitId);
+    }
   } else {
     for (const unit of message.units) {
       if (!unit || typeof unit.id !== 'string' || typeof unit.text !== 'string') continue;
@@ -560,6 +733,7 @@ async function handleUnitsReport(message, sender) {
         frameState.pending.delete(unit.id);
         frameState.segments.delete(unit.id);
         frameState.acknowledged.delete(unit.id);
+        frameState.outbox.delete(unit.id);
       }
       frameState.current.set(unit.id, unit);
     }
@@ -585,6 +759,19 @@ async function handleUnitsReport(message, sender) {
 
 async function handleSelection(message, sender) {
   const settings = state.settings;
+  const profile = primaryProfile(settings, 'selection');
+  if (await endpointPermissionRequired(profile)) {
+    return {
+      type: MESSAGE.SELECTION_DELIVERY,
+      url: message.url,
+      requestId: message.requestId,
+      status: 'error',
+      text: null,
+      error: permissionRequiredResult(message.url).error,
+      code: 'permission-required',
+      permissionRequired: true
+    };
+  }
   const domain = domainFromUrl(message.url);
   const targetLang = resolveSiteTargetLang(settings, domain);
   const controller = new AbortController();
@@ -634,11 +821,13 @@ async function handleSetSiteMode(message) {
     const pattern = hostPatternForUrl(message.url);
     if (pattern) await injectIntoOpenTabs(pattern, true);
   }
-  return { type: 'site-state-response', url: message.url, ok: true, ...buildSiteState(state.settings, message.url, await hasSitePermission(message.url)) };
+  const permissionGranted = await hasSitePermission(message.url);
+  return { type: 'site-state-response', url: message.url, ok: true, ...buildSiteState(state.settings, message.url, permissionGranted), permissionRequired: !permissionGranted };
 }
 
 async function getSiteStateFor(url) {
-  return buildSiteState(state.settings, url, await hasSitePermission(url));
+  const siteState = buildSiteState(state.settings, url, await hasSitePermission(url));
+  return { ...siteState, permissionRequired: !siteState.permissionGranted };
 }
 
 async function exportTm(format) {
@@ -677,11 +866,73 @@ async function cacheStats() {
   };
 }
 
+async function readErrorLog() {
+  const raw = await storageGet(ERROR_LOG_KEY).catch(() => []);
+  return pruneErrorLog(raw, state.settings.diagnostics?.errorRetentionDays ?? 7);
+}
+
+async function appendErrorLog(value) {
+  state.errorLogQueue = state.errorLogQueue.then(async () => {
+    const record = normalizeErrorRecord(value);
+    const minimumLevel = state.settings.diagnostics?.errorLogLevel ?? 'error';
+    if (!shouldRecordError(record.level, minimumLevel)) return;
+    const entries = await readErrorLog();
+    const fingerprint = errorFingerprint(record);
+    let duplicateIndex = -1;
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (errorFingerprint(entries[index]) !== fingerprint) continue;
+      if (record.timestamp - entries[index].timestamp <= 10000) duplicateIndex = index;
+      break;
+    }
+    if (duplicateIndex >= 0) {
+      const [previous] = entries.splice(duplicateIndex, 1);
+      entries.push({ ...previous, ...record, count: previous.count + 1 });
+    } else {
+      entries.push(record);
+    }
+    await storageSet(ERROR_LOG_KEY, pruneErrorLog(entries, state.settings.diagnostics?.errorRetentionDays ?? 7));
+  }).catch(() => {});
+  return state.errorLogQueue;
+}
+
+function recordBackgroundError(value, details = {}) {
+  const error = value instanceof Error ? value : new Error(String(value ?? 'Unknown error'));
+  return appendErrorLog({
+    level: 'error',
+    source: 'background',
+    message: error.message,
+    stack: error.stack || '',
+    url: runtime.getURL('src/background/index.js'),
+    details: JSON.stringify(details),
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  });
+}
+
+async function recordClientError(message, sender) {
+  const source = sanitizeErrorText(message.source || 'content', 80);
+  return appendErrorLog({
+    level: normalizeErrorLevel(message.level),
+    source,
+    message: message.message,
+    stack: message.stack || '',
+    url: sanitizeErrorUrl(message.url || sender?.url || sender?.tab?.url || ''),
+    runId: message.runId || '',
+    documentKey: message.documentKey || '',
+    userAgent: message.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
+    details: message.details ? JSON.stringify(message.details) : ''
+  });
+}
+
+async function clearErrorLog() {
+  await storageSet(ERROR_LOG_KEY, []);
+}
+
 async function handleDiagnostics() {
-  const [translation, cache, capabilities] = await Promise.all([
+  const [translation, cache, capabilities, errors] = await Promise.all([
     state.translator.diagnostics(),
     cacheStats(),
-    cacheStore.capabilitiesAll().catch(() => [])
+    cacheStore.capabilitiesAll().catch(() => []),
+    readErrorLog()
   ]);
   return {
     type: 'diagnostics-response',
@@ -690,7 +941,9 @@ async function handleDiagnostics() {
       ...translation,
       cache,
       capabilities,
-      prefetch: state.prefetch?.snapshot() ?? null
+      prefetch: state.prefetch?.snapshot() ?? null,
+      errorLog: errors,
+      errorLogSettings: state.settings.diagnostics
     }
   };
 }
@@ -718,11 +971,15 @@ async function handleMessage(message, sender) {
       }
       return { type: MESSAGE.PONG, receivedAt: Date.now() };
 
+    case MESSAGE.UI_TRANSLATIONS_REQUEST:
+      if (!validateContentMessage(message)) return { ok: false, error: 'Invalid UI translation request' };
+      return uiTranslationsResponse(message);
+
     case MESSAGE.TRANSLATE_PAGE: {
       const targetTabId = await resolveMessageTabId(message, sender);
       const targetUrl = message.url || senderUrl;
       if (targetTabId === undefined) return { ok: false, error: 'No active tab' };
-      if (!await hasSitePermission(targetUrl)) return { ok: false, error: 'Website access is required. Allow all sites from the popup first.' };
+      if (!await hasSitePermission(targetUrl)) return permissionRequiredResult(targetUrl);
       const siteInfo = buildSiteState(state.settings, targetUrl, true);
       if (siteInfo.blocked) return { ok: false, error: 'This site is blocked by the current site policy.' };
       if (!isEnabledForUrl(targetUrl)) return { ok: false, error: 'This site is not enabled. Enable it in the popup first.' };
@@ -748,7 +1005,7 @@ async function handleMessage(message, sender) {
       return handleSetSiteMode(message);
 
     case MESSAGE.OPEN_OPTIONS:
-      await openOptionsPage();
+      await openOptionsPage(message.section === 'sites' ? 'sites' : undefined);
       return { type: 'open-options-response', ok: true };
 
     case MESSAGE.FRAME_HELLO: {
@@ -796,6 +1053,7 @@ async function handleMessage(message, sender) {
     case MESSAGE.RUN_PAUSED: {
       const run = getRun(tabId, message.url, message.runId);
       if (run) {
+        clearRunTimers(run);
         run.state = 'paused';
         run.pauseReason = message.reason;
         run.notice = {
@@ -844,12 +1102,14 @@ async function handleMessage(message, sender) {
       return importTm(message.raw);
 
     case MESSAGE.PROBE_PROFILE_REQUEST: {
+      if (await endpointPermissionRequired(message.profile)) return permissionRequiredResult(message.profile.baseUrl);
       const capability = await probeProfile(message.profile);
       await cacheStore.capabilityPut(capability).catch(() => {});
       return { type: 'probe-profile-response', ok: true, profileId: message.profile.id, capabilities: capability };
     }
 
     case MESSAGE.TEST_CONNECTION_REQUEST: {
+      if (await endpointPermissionRequired(message.profile)) return permissionRequiredResult(message.profile.baseUrl);
       const result = await testConnection(message.profile);
       await cacheStore.capabilityPut(result.capabilities).catch(() => {});
       return { type: 'test-connection-response', ok: true, latencyMs: result.latencyMs, tokensPerSecond: result.capabilities.tokensPerSecond, capabilities: result.capabilities };
@@ -859,8 +1119,11 @@ async function handleMessage(message, sender) {
       if (!validateContentMessage(message)) {
         return { type: 'translation-prompt-test-response', ok: false, error: 'Invalid prompt test request' };
       }
+      const settings = normalizeSettings(message.settings);
+      const profile = primaryProfile(settings, 'primary');
+      if (await endpointPermissionRequired(profile)) return permissionRequiredResult(profile.baseUrl);
       const result = await testTranslationPrompt({
-        settings: normalizeSettings(message.settings),
+        settings,
         mode: message.mode,
         texts: message.texts,
         batchSize: message.batchSize,
@@ -870,6 +1133,7 @@ async function handleMessage(message, sender) {
     }
 
     case MESSAGE.REFRESH_MODELS_REQUEST: {
+      if (await endpointPermissionRequired(message.profile)) return permissionRequiredResult(message.profile.baseUrl);
       const adapter = createAdapter(message.profile);
       const timeoutMs = Number.isFinite(message.timeoutMs) ? Math.max(1000, message.timeoutMs) : undefined;
       const probe = await adapter.probe({ timeoutMs });
@@ -892,13 +1156,19 @@ async function handleMessage(message, sender) {
     case MESSAGE.PREFETCH_METRICS_REQUEST:
       return { type: 'prefetch-metrics-response', ok: true, snapshot: state.prefetch.snapshot() };
 
-    case MESSAGE.HUD_REQUEST: {
-      const run = getRun(tabId, message.url);
-      return { type: 'hud-response', ok: true, snapshot: progressSummary(run) };
-    }
-
     case MESSAGE.DIAGNOSTICS_REQUEST:
       return handleDiagnostics();
+
+    case MESSAGE.CLIENT_ERROR:
+      await recordClientError(message, sender);
+      return { ok: true };
+
+    case MESSAGE.ERROR_LOG_REQUEST:
+      return { ok: true, errors: await readErrorLog(), retentionDays: state.settings.diagnostics.errorRetentionDays };
+
+    case MESSAGE.ERROR_LOG_CLEAR_REQUEST:
+      await clearErrorLog();
+      return { ok: true };
 
     case MESSAGE.SET_AUTO_TRANSLATE_DYNAMIC: {
       const value = await updateAutoTranslateDynamic(tabId, message.value);
@@ -968,18 +1238,6 @@ async function commandHandler(command) {
   const tab = await activeTab();
   if (!tab?.id || !tab.url) return;
   switch (command) {
-    case 'translate-page': {
-      if (!await hasSitePermission(tab.url)) break;
-      const siteInfo = buildSiteState(state.settings, tab.url, true);
-      if (siteInfo.blocked || !isEnabledForUrl(tab.url)) break;
-      const pattern = hostPatternForUrl(tab.url);
-      if (pattern) await injectIntoOpenTabs(pattern, true);
-      await startRun(tab.id, tab.url, { profileRole: 'primary' });
-      break;
-    }
-    case 'revert-page':
-      await revertRun(tab.id, tab.url);
-      break;
     case 'translate-selection':
       await sendTabMessage(tab.id, { type: MESSAGE.TRANSLATE_SELECTION, url: tab.url }).catch(() => {});
       break;
@@ -999,6 +1257,13 @@ async function init() {
     translator: state.translator,
     onError: (error) => console.warn('[lbt] prefetch', error)
   });
+  if (state.settings.behaviour.allSitesEnabled && !await hasAllSitesPermission()) {
+    state.settings = await saveSettings({
+      ...state.settings,
+      behaviour: { ...state.settings.behaviour, allSitesEnabled: false }
+    });
+    await broadcastPermissionRequired('all-sites-missing-on-startup');
+  }
   await syncSiteScripts(state.settings.behaviour).catch(() => {});
   await cacheStore.open().catch(() => {});
   await cacheStore.evict({ diskCapBytes: state.settings.cache.diskCapBytes, ttlMs: state.settings.cache.ttlMs }).catch(() => {});
@@ -1006,8 +1271,18 @@ async function init() {
   if (tab?.id && tab.url) maybeAutoStart(tab.id, tab.url).catch(() => {});
 }
 
+globalThis.addEventListener?.('error', (event) => {
+  recordBackgroundError(event.error || event.message, { phase: 'background-error-event', filename: event.filename, lineno: event.lineno, colno: event.colno });
+});
+globalThis.addEventListener?.('unhandledrejection', (event) => {
+  recordBackgroundError(event.reason, { phase: 'background-unhandled-rejection' });
+});
+
 const ready = init();
-ready.catch((error) => console.error('[lbt] background boot failed', error));
+ready.catch((error) => {
+  console.error('[lbt] background boot failed', error);
+  recordBackgroundError(error, { phase: 'background-boot' });
+});
 
 state.permissionCleanup = installPermissionListeners({
   getSettings: () => state.settings,
@@ -1024,6 +1299,7 @@ state.permissionCleanup = installPermissionListeners({
       ...state.settings,
       behaviour: { ...state.settings.behaviour, allSitesEnabled: false }
     });
+    await broadcastPermissionRequired('all-sites-removed');
     await syncSiteScripts(state.settings.behaviour);
   }
 });
@@ -1033,19 +1309,16 @@ onStorageChanged((changes, area) => {
   state.settings = normalizeSettings(changes[SETTINGS_KEY].newValue);
 });
 
-onRuntimeConnect((port) => {
-  if (port.name !== RUN_PORT_NAME) return;
-  port.onMessage.addListener(() => {});
-  port.onDisconnect.addListener(() => {});
-});
-
 onRuntimeMessage(async (message, sender) => {
   await ready;
   return handleMessage(message, sender);
 });
 
 onCommand((command) => {
-  ready.then(() => commandHandler(command)).catch((error) => console.error('[lbt] command failed', error));
+  ready.then(() => commandHandler(command)).catch((error) => {
+    console.error('[lbt] command failed', error);
+    recordBackgroundError(error, { phase: 'command', command });
+  });
 });
 
 onTabUpdated((tabId, changeInfo, tab) => {

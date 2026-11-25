@@ -112,7 +112,7 @@ test('auto-continuation is limited to an already-started same-page session after
   assert.match(pageChange, /page-context-changed/);
   assert.match(delivery, /sessionActive/);
   assert.match(delivery, /sessionHref/);
-  assert.match(mutation, /scheduleExtraction\(\)/);
+  assert.match(mutation, /scheduleExtraction\(/);
   assert.match(main, /documentKey/);
   assert.doesNotMatch(mutation, /type:\s*'translate-page'/);
 });

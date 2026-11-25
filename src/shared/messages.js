@@ -1,3 +1,6 @@
+export const UI_TRANSLATIONS_REQUEST = 'ui-translations-request';
+export const PERMISSION_REQUIRED = 'permission-required';
+
 export const MESSAGE = Object.freeze({
   PING: 'ping',
   PONG: 'pong',
@@ -42,17 +45,24 @@ export const MESSAGE = Object.freeze({
   TEST_CONNECTION_REQUEST: 'test-connection-request',
   TRANSLATION_PROMPT_TEST_REQUEST: 'translation-prompt-test-request',
   PREFETCH_METRICS_REQUEST: 'prefetch-metrics-request',
-  HUD_REQUEST: 'hud-request',
   DIAGNOSTICS_REQUEST: 'diagnostics-request',
+  CLIENT_ERROR: 'client-error',
+  ERROR_LOG_REQUEST: 'error-log-request',
+  ERROR_LOG_CLEAR_REQUEST: 'error-log-clear-request',
   EXCLUSIONS_PREVIEW_REQUEST: 'exclusions-preview-request',
   HARD_RESET_REQUEST: 'hard-reset-request',
   SET_AUTO_TRANSLATE_DYNAMIC: 'set-auto-translate-dynamic',
   SAVE_SETTINGS: 'save-settings',
-  LOAD_SETTINGS: 'load-settings'
+  LOAD_SETTINGS: 'load-settings',
+  UI_TRANSLATIONS_REQUEST,
+  PERMISSION_REQUIRED
 });
 
-export const RUN_PORT_NAME = 'lbt.run.keepalive';
-export const KEEPALIVE_TYPE = 'run-port-keepalive';
+export const MAX_PAGE_UNITS = 100000;
+export const MAX_UI_TRANSLATION_KEYS = 2000;
+export const MAX_UI_TRANSLATION_KEY_LENGTH = 500;
+export const MAX_UI_TRANSLATION_TOTAL_KEY_LENGTH = 200000;
+export const MAX_UI_LOCALE_LENGTH = 64;
 
 export function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -97,16 +107,19 @@ export function validateContentMessage(message) {
       return typeof message.url === 'string'
         && typeof message.runId === 'string'
         && Array.isArray(message.units)
-        && message.units.length <= 5000
+        && message.units.length <= MAX_PAGE_UNITS
         && (message.snapshot === undefined || typeof message.snapshot === 'boolean')
         && (message.documentKey === undefined || typeof message.documentKey === 'string')
-        && (message.inventoryRevision === undefined || (Number.isInteger(message.inventoryRevision) && message.inventoryRevision >= 0));
+        && (message.inventoryRevision === undefined || (Number.isInteger(message.inventoryRevision) && message.inventoryRevision >= 0))
+        && (message.chunkIndex === undefined || (Number.isInteger(message.chunkIndex) && message.chunkIndex >= 0))
+        && (message.chunkCount === undefined || (Number.isInteger(message.chunkCount) && message.chunkCount >= 1))
+        && (message.snapshotId === undefined || typeof message.snapshotId === 'string');
     case MESSAGE.SEGMENT_APPLIED:
       return typeof message.url === 'string'
         && typeof message.runId === 'string'
         && (message.documentKey === undefined || typeof message.documentKey === 'string')
         && Array.isArray(message.unitIds)
-        && message.unitIds.length <= 5000
+        && message.unitIds.length <= MAX_PAGE_UNITS
         && message.unitIds.every((unitId) => typeof unitId === 'string');
     case MESSAGE.SELECTION_REQUEST:
       return typeof message.url === 'string'
@@ -152,6 +165,21 @@ export function validateContentMessage(message) {
     case MESSAGE.DIAGNOSTICS_REQUEST:
     case MESSAGE.HARD_RESET_REQUEST:
       return true;
+    case MESSAGE.CLIENT_ERROR:
+      return typeof message.source === 'string'
+        && message.source.length <= 80
+        && typeof message.message === 'string'
+        && message.message.length <= 4000
+        && (message.level === undefined || ['debug', 'info', 'warn', 'error'].includes(message.level))
+        && (message.stack === undefined || (typeof message.stack === 'string' && message.stack.length <= 12000))
+        && (message.url === undefined || typeof message.url === 'string')
+        && (message.runId === undefined || message.runId === null || typeof message.runId === 'string')
+        && (message.documentKey === undefined || typeof message.documentKey === 'string')
+        && (message.userAgent === undefined || typeof message.userAgent === 'string')
+        && (message.details === undefined || typeof message.details === 'object');
+    case MESSAGE.ERROR_LOG_REQUEST:
+    case MESSAGE.ERROR_LOG_CLEAR_REQUEST:
+      return true;
     case MESSAGE.PROBE_PROFILE_REQUEST:
     case MESSAGE.REFRESH_MODELS_REQUEST:
     case MESSAGE.TEST_CONNECTION_REQUEST:
@@ -168,8 +196,6 @@ export function validateContentMessage(message) {
         && (message.sourceLang === undefined || message.sourceLang === null || typeof message.sourceLang === 'string');
     case MESSAGE.CAPABILITIES_REQUEST:
       return Array.isArray(message.profileIds) && message.profileIds.every((value) => typeof value === 'string');
-    case MESSAGE.HUD_REQUEST:
-      return typeof message.url === 'string';
     case MESSAGE.EXCLUSIONS_PREVIEW_REQUEST:
       return typeof message.url === 'string' && Array.isArray(message.rules);
     case MESSAGE.SET_AUTO_TRANSLATE_DYNAMIC:
@@ -178,6 +204,15 @@ export function validateContentMessage(message) {
       return isObject(message.settings);
     case MESSAGE.LOAD_SETTINGS:
       return true;
+    case MESSAGE.UI_TRANSLATIONS_REQUEST: {
+      const validLocale = message.locale === null
+        || (typeof message.locale === 'string' && message.locale.length <= MAX_UI_LOCALE_LENGTH);
+      return validLocale
+        && Array.isArray(message.keys)
+        && message.keys.length <= MAX_UI_TRANSLATION_KEYS
+        && message.keys.every((key) => typeof key === 'string' && key.length <= MAX_UI_TRANSLATION_KEY_LENGTH)
+        && message.keys.reduce((total, key) => total + key.length, 0) <= MAX_UI_TRANSLATION_TOTAL_KEY_LENGTH;
+    }
     default:
       return false;
   }

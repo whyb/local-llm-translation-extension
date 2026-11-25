@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { DEFAULT_SETTINGS, normalizeSettings } from '../src/shared/settings.js';
+import { DEFAULT_SETTINGS, normalizeSettings, SETTINGS_VERSION } from '../src/shared/settings.js';
 import { normalizeUrl, siteStateFromSettings, validatePrefetchUrl } from '../src/shared/urls.js';
 import { MESSAGE, validateContentMessage } from '../src/shared/messages.js';
 import { DEFAULT_TARGET_LANGUAGE, getLanguageOptions, languageFlagFor, preferredBrowserLanguage, searchLanguageOptions } from '../src/shared/languages.js';
@@ -14,6 +14,18 @@ test('defaults are valid and have no secret', () => {
   assert.equal(settings.behaviour.autoTranslateDefault, 'ask');
   assert.equal(settings.behaviour.allSitesEnabled, false);
   assert.equal(settings.speed.prefetch.hoverPrefetch, false);
+  assert.equal(settings.speed.runaway.pageUnitCeiling, 100000);
+  assert.equal(settings.diagnostics.errorLogLevel, 'error');
+  assert.equal(settings.diagnostics.errorRetentionDays, 7);
+});
+
+test('legacy default page ceiling migrates while explicit newer values are preserved', () => {
+  assert.equal(SETTINGS_VERSION, 4);
+  assert.equal(normalizeSettings({ version: 1, speed: { runaway: { pageUnitCeiling: 500 } } }).speed.runaway.pageUnitCeiling, 100000);
+  assert.equal(normalizeSettings({ version: 2, speed: { runaway: { pageUnitCeiling: 5000 } } }).speed.runaway.pageUnitCeiling, 100000);
+  assert.equal(normalizeSettings({ version: 1, speed: { runaway: { pageUnitCeiling: 1200 } } }).speed.runaway.pageUnitCeiling, 1200);
+  assert.equal(normalizeSettings({ version: 4, speed: { runaway: { pageUnitCeiling: 5000 } } }).speed.runaway.pageUnitCeiling, 5000);
+  assert.equal(normalizeSettings({ version: 4, speed: { runaway: { pageUnitCeiling: 200000 } } }).speed.runaway.pageUnitCeiling, 100000);
 });
 
 test('provider selection defaults to first profile and empty lists are preserved', () => {

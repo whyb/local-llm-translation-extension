@@ -33,7 +33,7 @@ export function renderSpeed(ctx) {
 
   const runaway = controlGrid(
     'three',
-    field('Runaway page units', numberInput(speed.runaway.pageUnitCeiling, (value) => { speed.runaway.pageUnitCeiling = value ?? 500; markDirty(); }, { min: '0', step: '1' })),
+    field('Runaway page units', numberInput(speed.runaway.pageUnitCeiling, (value) => { speed.runaway.pageUnitCeiling = value ?? 100000; markDirty(); }, { min: '0', max: '100000', step: '1' })),
     field('Runaway tokens/min', numberInput(speed.runaway.perMinuteTokenCeiling, (value) => { speed.runaway.perMinuteTokenCeiling = value ?? 60000; markDirty(); }, { min: '0', step: '1000' })),
     field('Expansion ratio', numberInput(speed.runaway.responseExpansionRatio, (value) => { speed.runaway.responseExpansionRatio = value ?? 2; markDirty(); }, { min: '1', max: '8', step: '0.1' })),
     field('Retained originals', numberInput(speed.contentMemory.maxRetainedOriginals, (value) => { speed.contentMemory.maxRetainedOriginals = value ?? 5000; markDirty(); }, { min: '100', step: '100' }))

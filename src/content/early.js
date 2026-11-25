@@ -3,7 +3,7 @@
   'use strict';
   const LBT = globalThis.LBT;
   if (!LBT) return;
-  const { mark, sendMessage, extractTextUnits, applyEarlyTranslation, debugLog } = LBT;
+  const { mark, sendMessage, extractTextUnits, applyEarlyTranslation } = LBT;
   let stopped = false;
   let observer = null;
   let timer = null;
@@ -88,10 +88,11 @@
         setStatus('lookup-failed');
         return;
       }
+      const unitsById = new Map(units.map((unit) => [unit.id, unit]));
       let hits = 0;
       for (const result of response.results) {
         if (result.status !== 'hit' || typeof result.translation !== 'string') continue;
-        const unit = units.find((candidate) => candidate.id === result.id);
+        const unit = unitsById.get(result.id);
         if (unit?.node?.isConnected) {
           applyEarlyTranslation(unit.node, result.translation);
           hits += 1;
@@ -99,10 +100,9 @@
       }
       setStatus('done', `${hits}/${units.length}`);
       mark('lbt:early-first-paint');
-      debugLog('early cache lookup', { units: units.length, hits });
     } catch (error) {
       setStatus('lookup-error', LBT.errorMessage(error));
-      debugLog('early lookup failed', LBT.errorMessage(error));
+      void error;
     }
   }
 

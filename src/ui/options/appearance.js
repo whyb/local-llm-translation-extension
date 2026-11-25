@@ -1,8 +1,14 @@
-import { CORNERS, FRESH_STYLES, GLOW_STYLES } from '../../shared/settings.js';
-import { t } from '../../shared/i18n.js';
-import { card, check, controlGrid, el, field, numberInput, selectInput, textInput } from './ui-utils.js';
-const GLOW_LABELS = Object.freeze({ 'text-glow': 'Text glow', 'subtle-tint': 'Subtle tint', shimmer: 'Shimmer', none: 'None' });
-const FRESH_LABELS = Object.freeze({ pop: 'Pop', fade: 'Fade' });
+import { CORNERS } from '../../shared/settings.js';
+import {
+  applyI18n,
+  LOCALE_LABELS,
+  localizeDocument,
+  setUiLocale,
+  SUPPORTED_LOCALES,
+  t
+} from '../../shared/i18n.js';
+import { card, check, controlGrid, el, field, selectInput } from './ui-utils.js';
+
 const CORNER_LABELS = Object.freeze({
   'top-left': 'Top left',
   'top-right': 'Top right',
@@ -11,8 +17,30 @@ const CORNER_LABELS = Object.freeze({
 });
 
 export function renderAppearance(ctx) {
-  const { settings, content, markDirty } = ctx;
+  const { settings, content, markDirty, render } = ctx;
   const appearance = settings.appearance;
+
+  const languageOptions = [
+    { value: '', label: 'Browser language' },
+    ...SUPPORTED_LOCALES.map((locale) => ({
+      value: locale,
+      label: LOCALE_LABELS[locale] ?? locale,
+      raw: true
+    }))
+  ];
+  const languageControls = controlGrid(
+    'two',
+    field('Display language', selectInput(appearance.uiLocale ?? '', languageOptions, (value) => {
+      appearance.uiLocale = value || null;
+      setUiLocale(appearance.uiLocale);
+      localizeDocument(document);
+      document.title = t('Local LLM Translator Pro — Settings');
+      applyI18n(document);
+      markDirty();
+      render();
+    }))
+  );
+  content.append(card('Language options', null, languageControls));
 
   const floatingPreview = el('div', 'appearance-preview floating-preview');
   floatingPreview.setAttribute('role', 'img');
@@ -65,47 +93,4 @@ export function renderAppearance(ctx) {
   });
   selectionPreview.dataset.enabled = String(appearance.selectionButtonEnabled);
   content.append(card('Selection button', 'Show a compact translation action next to selected page text.', selectionCheck, selectionPreview));
-
-  const hudPreview = el('div', 'appearance-preview hud-preview');
-  hudPreview.setAttribute('role', 'img');
-  hudPreview.setAttribute('aria-label', t('Performance HUD'));
-  hudPreview.append(el('pre', 'hud-preview-window', 'LLMT translating\n12 / 40 (30%)\nrun-demo-4f2a'));
-  const hudCheck = check('Performance HUD', appearance.hudEnabled, (value) => {
-    appearance.hudEnabled = value;
-    markDirty();
-    hudPreview.dataset.enabled = String(value);
-  });
-  hudPreview.dataset.enabled = String(appearance.hudEnabled);
-  content.append(card('Performance HUD', 'Display live run details while translating.', hudCheck, hudPreview));
-
-  const glowPreview = el('div', 'appearance-preview glow-preview');
-  glowPreview.setAttribute('role', 'img');
-  glowPreview.setAttribute('aria-label', t('Glow feedback'));
-  const pendingChip = el('span', 'glow-preview-chip glow-preview-pending', t('Translating'));
-  const freshChip = el('span', 'glow-preview-chip glow-preview-fresh', t('Translated'));
-  glowPreview.append(pendingChip, freshChip);
-  const updateGlowPreview = () => {
-    glowPreview.dataset.pendingStyle = appearance.glow.pendingStyle;
-    glowPreview.dataset.freshStyle = appearance.glow.freshStyle;
-    glowPreview.dataset.enabled = String(appearance.glow.enabled);
-    glowPreview.style.setProperty('--preview-pending', appearance.glow.pendingColor);
-    glowPreview.style.setProperty('--preview-fresh', appearance.glow.freshColor);
-    glowPreview.classList.toggle('is-reduced', appearance.glow.reducedIntensity);
-  };
-  const glowControls = controlGrid(
-    'three',
-    check('Glow feedback', appearance.glow.enabled, (value) => {
-      appearance.glow.enabled = value;
-      markDirty();
-      updateGlowPreview();
-    }),
-    field('Pending color', textInput(appearance.glow.pendingColor, (value) => { appearance.glow.pendingColor = value; markDirty(); updateGlowPreview(); }, 'color')),
-    field('Fresh color', textInput(appearance.glow.freshColor, (value) => { appearance.glow.freshColor = value; markDirty(); updateGlowPreview(); }, 'color')),
-    field('Cooldown (ms)', numberInput(appearance.glow.cooldownMs, (value) => { appearance.glow.cooldownMs = value ?? 1200; markDirty(); }, { min: '0', step: '100' })),
-    field('Pending style', selectInput(appearance.glow.pendingStyle, GLOW_STYLES.map((value) => ({ value, label: GLOW_LABELS[value] ?? value })), (value) => { appearance.glow.pendingStyle = value; markDirty(); updateGlowPreview(); })),
-    field('Fresh style', selectInput(appearance.glow.freshStyle, FRESH_STYLES.map((value) => ({ value, label: FRESH_LABELS[value] ?? value })), (value) => { appearance.glow.freshStyle = value; markDirty(); updateGlowPreview(); })),
-    check('Reduced intensity', appearance.glow.reducedIntensity, (value) => { appearance.glow.reducedIntensity = value; markDirty(); updateGlowPreview(); }, 'Use subtler highlights for photosensitivity or visual preference.')
-  );
-  updateGlowPreview();
-  content.append(card('Glow feedback', 'Highlight translated content without changing page text or layout.', glowControls, glowPreview));
 }
