@@ -164,7 +164,7 @@ There is no `externally_connectable`, no static content-script injection, no coo
 
 [License]: LICENSE
 [Mozilla]: https://addons.mozilla.org/zh-CN/firefox/addon/local-llm-translator-pro/
-[Edge]: https://microsoftedge.microsoft.com/addons/detail/local-llm-translator-pro/igjolmhpjkepdeodedpppkbajmhmppeg?hl=zh-CN&gl=CN
+[Edge]: https://microsoftedge.microsoft.com/addons/detail/local-llm-translator-pro/igjolmhpjkepdeodedpppkbajmhmppeg
 
 [Badge License]: https://img.shields.io/badge/License-GPLv3-blue.svg
 [Badge Mozilla]: https://img.shields.io/badge/Firefox-Awaiting_review-orange?logo=firefoxbrowser&logoColor=white
