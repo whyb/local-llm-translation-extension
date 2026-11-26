@@ -17,8 +17,8 @@ Privacy-first browser translation extension powered by local LLMs — your text 
 
 | Browser | Install from ... | Status |
 | :-----: | ---------------- | ------ |
-| <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/firefox/firefox_48x48.png" height="32" alt="Get Local LLM Translator Pro for Firefox"> | <a href="https://addons.mozilla.org/zh-CN/firefox/addon/local-llm-translator-pro/">Firefox Add-ons</a> | ⏳ Submitted — awaiting review |
-| <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/edge/edge_48x48.png" height="32" alt="Get Local LLM Translator Pro for Microsoft Edge"> | <a href="https://microsoftedge.microsoft.com/addons/detail/local-llm-translator-pro/igjolmhpjkepdeodedpppkbajmhmppeg?hl=zh-CN&amp;gl=CN">Edge Add-ons</a> | ✅ Published |
+| <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/firefox/firefox_48x48.png" height="32" alt="Get Local LLM Translator Pro for Firefox"> | <a href="https://addons.mozilla.org/zh-CN/firefox/addon/local-llm-translator-pro/">Firefox Add-ons</a> | ⏳ Pending approval |
+| <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/edge/edge_48x48.png" height="32" alt="Get Local LLM Translator Pro for Microsoft Edge"> | <a href="https://microsoftedge.microsoft.com/addons/detail/local-llm-translator-pro/igjolmhpjkepdeodedpppkbajmhmppeg">Edge Add-ons</a> | ✅ Published |
 | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/chrome/chrome_48x48.png" height="32" alt="Get Local LLM Translator Pro for Chrome"> | Chrome Web Store (coming soon) | ⏳ Pending approval |
 
 ## What it does
