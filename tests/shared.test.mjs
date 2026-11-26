@@ -121,6 +121,18 @@ test('translation preference messages validate target language and render mode',
     type: MESSAGE.SET_TRANSLATION_PREFERENCES,
     preferences: { targetLang: 'x'.repeat(201) }
   }), false);
+  assert.equal(validateContentMessage({
+    type: MESSAGE.SET_TRANSLATION_PREFERENCES,
+    preferences: { renderMode: 'replace', unexpected: true }
+  }), false);
+  assert.equal(validateContentMessage({
+    type: MESSAGE.SET_TRANSLATION_PREFERENCES,
+    preferences: {}
+  }), false);
+  assert.equal(validateContentMessage({
+    type: MESSAGE.SET_TRANSLATION_PREFERENCES,
+    preferences: { targetLang: '   ' }
+  }), false);
 });
 test('language catalogue covers global languages and supports local search', () => {
   const options = getLanguageOptions('en');

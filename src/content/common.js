@@ -854,9 +854,34 @@
     setMode(mode) {
       if (mode === this.mode) return;
       this.mode = mode;
+      const units = [...state.unitById.values()];
       const entries = [...this.translations.entries()];
       this.revertAll(false);
-      for (const [unitId, payload] of entries) this.apply(unitId, payload.translated ?? payload.translation, payload.unit);
+      for (const unit of units) this.restoreUnitIndex(unit.id, unit);
+      for (const [unitId, payload] of entries) {
+        this.restoreUnitIndex(unitId, payload.unit);
+        this.apply(unitId, payload.translated ?? payload.translation, payload.unit);
+      }
+    }
+
+    restoreUnitIndex(unitId, unit) {
+      if (!unit) return;
+      if (unit.kind === 'text' && unit.node?.isConnected) {
+        state.unitById.set(unit.id ?? unitId, unit);
+        state.unitByNode.set(unit.node, unit);
+        state.unitIdByNode.set(unit.node, unit.id ?? unitId);
+        state.processedNodes.add(unit.node);
+        return;
+      }
+      if (unit.kind === 'attribute' && unit.element?.isConnected) {
+        state.unitById.set(unit.id ?? unitId, unit);
+        let entries = state.attributeUnitByElement.get(unit.element);
+        if (!entries) {
+          entries = new Map();
+          state.attributeUnitByElement.set(unit.element, entries);
+        }
+        entries.set(unit.attribute, { key: `${unit.attribute}:${unit.text}`, id: unit.id ?? unitId });
+      }
     }
 
     toggleMode() {

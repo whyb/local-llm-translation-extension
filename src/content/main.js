@@ -516,6 +516,8 @@
       this.revertButton = this.localized('button', 'danger', 'Revert');
       this.stopButton.disabled = true;
       this.translateButton.addEventListener('click', async () => {
+        await this.preferenceSavePromise.catch(() => {});
+        if (this.preferencesBusy) return;
         this.setStatus('Starting translation…');
         try {
           const response = await sendMessage({ type: 'translate-page', url: location.href, documentKey });
@@ -719,7 +721,8 @@
           this.openLanguageMenu();
         } else {
           this.commitLanguageInput();
-          this.closeLanguageMenu(true);
+          this.closeLanguageMenu();
+          this.languageToggle.focus();
         }
       });
       this.displayModeSelect.addEventListener('change', () => {
@@ -747,6 +750,7 @@
       if (this.languageInput) this.languageInput.disabled = targetDisabled;
       if (this.languageToggle) this.languageToggle.disabled = targetDisabled;
       if (this.displayModeSelect) this.displayModeSelect.disabled = this.preferencesBusy;
+      if (this.translateButton) this.translateButton.disabled = this.translating || this.preferencesBusy;
       if (this.translationCard) this.translationCard.setAttribute('aria-busy', String(this.preferencesBusy));
       if (targetDisabled) this.closeLanguageMenu();
     }
@@ -757,18 +761,19 @@
     }
 
     queueTranslationPreferenceSave(patch) {
+      const requested = {
+        targetLang: patch.targetLang ?? (this.languageInput?.value.trim() || settings.translation.targetLang),
+        renderMode: patch.renderMode ?? (this.displayModeSelect?.value || settings.translation.renderMode)
+      };
       this.preferenceSavePromise = this.preferenceSavePromise
         .catch(() => {})
-        .then(() => this.saveTranslationPreferences(patch));
+        .then(() => this.saveTranslationPreferences(requested));
       return this.preferenceSavePromise;
     }
 
-    async saveTranslationPreferences() {
-      if (!this.languageInput || !this.displayModeSelect || this.translating) return false;
-      const requested = {
-        targetLang: this.languageInput.value.trim() || settings.translation.targetLang,
-        renderMode: this.displayModeSelect.value || settings.translation.renderMode
-      };
+    async saveTranslationPreferences(requested) {
+      if (!this.languageInput || !this.displayModeSelect) return false;
+      if (this.translating && requested.targetLang !== settings.translation.targetLang) return false;
       this.setPreferenceBusy(true);
       try {
         const response = await sendMessage({ type: 'set-translation-preferences', preferences: requested });
@@ -809,7 +814,7 @@
       this.positionLanguagePopup();
     }
 
-    closeLanguageMenu(focus = false) {
+    closeLanguageMenu() {
       if (!this.languagePopup || this.languagePopup.hidden) return;
       this.languagePopup.hidden = true;
       this.languageActiveIndex = -1;
@@ -817,7 +822,6 @@
       this.languageInput?.removeAttribute('aria-activedescendant');
       this.languageToggle?.setAttribute('aria-expanded', 'false');
       if (this.languageToggle) this.languageToggle.textContent = '⌄';
-      if (focus) this.languageInput?.focus();
     }
 
     positionLanguagePopup() {

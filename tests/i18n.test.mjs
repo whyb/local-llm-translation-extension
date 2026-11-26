@@ -287,6 +287,7 @@ test('floating translation controls request all localized labels', async () => {
   assert.ok(panelKeysMatch, 'missing floating panel translation key list');
   const panelKeys = new Set(stringLiterals(panelKeysMatch[1]));
   for (const key of [
+    'TRANSLATION',
     'Translation',
     'Target language',
     'Display mode',

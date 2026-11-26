@@ -109,7 +109,10 @@ function uiTranslationsResponse(message) {
   const locale = message.locale ?? getUILanguage();
   const keys = Array.isArray(message.keys) ? message.keys : [];
   const translations = Object.fromEntries(keys.map((key) => [key, translateForLocale(locale, key)]));
-  const languageOptions = getLanguageOptions(getUILanguage()).map(({ value, name, nativeName, territory, searchText }) => ({
+  const optionLocale = typeof locale === 'string' && locale.trim() && locale.trim().toLowerCase() !== 'auto'
+    ? locale.trim()
+    : getUILanguage();
+  const languageOptions = getLanguageOptions(optionLocale).map(({ value, name, nativeName, territory, searchText }) => ({
     value, name, nativeName, territory, searchText
   }));
   return { ok: true, locale, translations, languageOptions };
@@ -1182,7 +1185,7 @@ async function handleMessage(message, sender) {
     case MESSAGE.SET_TRANSLATION_PREFERENCES: {
       if (!validateContentMessage(message)) return { ok: false, error: 'Invalid translation preference update.' };
       const translation = { ...state.settings.translation };
-      if (message.preferences.targetLang !== undefined) translation.targetLang = message.preferences.targetLang;
+      if (message.preferences.targetLang !== undefined) translation.targetLang = message.preferences.targetLang.trim();
       if (message.preferences.renderMode !== undefined) translation.renderMode = message.preferences.renderMode;
       state.settings = await saveSettings({ ...state.settings, translation });
       return {

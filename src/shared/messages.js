@@ -201,12 +201,18 @@ export function validateContentMessage(message) {
       return typeof message.url === 'string' && Array.isArray(message.rules);
     case MESSAGE.SET_AUTO_TRANSLATE_DYNAMIC:
       return typeof message.value === 'boolean';
-    case MESSAGE.SET_TRANSLATION_PREFERENCES:
-      return isObject(message.preferences)
+    case MESSAGE.SET_TRANSLATION_PREFERENCES: {
+      if (!isObject(message.preferences)) return false;
+      const keys = Object.keys(message.preferences);
+      return keys.length > 0
+        && keys.every((key) => key === 'targetLang' || key === 'renderMode')
         && (message.preferences.targetLang === undefined
-          || (typeof message.preferences.targetLang === 'string' && message.preferences.targetLang.length <= 200))
+          || (typeof message.preferences.targetLang === 'string'
+            && message.preferences.targetLang.trim().length > 0
+            && message.preferences.targetLang.length <= 200))
         && (message.preferences.renderMode === undefined
           || ['replace', 'bilingual-stacked', 'replace-hover-reveal'].includes(message.preferences.renderMode));
+    }
     case MESSAGE.SAVE_SETTINGS:
       return isObject(message.settings);
     case MESSAGE.LOAD_SETTINGS:
