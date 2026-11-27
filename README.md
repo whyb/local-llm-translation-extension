@@ -1,6 +1,6 @@
 [![Badge License]][License]
 [![Badge Mozilla]][Mozilla]
-![Badge Chrome]
+[![Badge Chrome]][Chrome]
 [![Badge Edge]][Edge]
 
 ***
@@ -19,7 +19,7 @@ Privacy-first browser translation extension powered by local LLMs — your text 
 | :-----: | ---------------- | ------ |
 | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/firefox/firefox_48x48.png" height="32" alt="Get Local LLM Translator Pro for Firefox"> | <a href="https://addons.mozilla.org/zh-CN/firefox/addon/local-llm-translator-pro/">Firefox Add-ons</a> | ⏳ Pending approval |
 | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/edge/edge_48x48.png" height="32" alt="Get Local LLM Translator Pro for Microsoft Edge"> | <a href="https://microsoftedge.microsoft.com/addons/detail/local-llm-translator-pro/igjolmhpjkepdeodedpppkbajmhmppeg">Edge Add-ons</a> | ✅ Published |
-| <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/chrome/chrome_48x48.png" height="32" alt="Get Local LLM Translator Pro for Chrome"> | Chrome Web Store (coming soon) | ⏳ Pending approval |
+| <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/chrome/chrome_48x48.png" height="32" alt="Get Local LLM Translator Pro for Chrome"> | <a href="https://chromewebstore.google.com/detail/local-llm-translator-pro/hjgincceghgafihgidckiebjkbakkaan">Chrome Web Store</a> | ✅ Published |
 
 ## What it does
 
@@ -165,8 +165,9 @@ There is no `externally_connectable`, no static content-script injection, no coo
 [License]: LICENSE
 [Mozilla]: https://addons.mozilla.org/zh-CN/firefox/addon/local-llm-translator-pro/
 [Edge]: https://microsoftedge.microsoft.com/addons/detail/local-llm-translator-pro/igjolmhpjkepdeodedpppkbajmhmppeg
+[Chrome]: https://chromewebstore.google.com/detail/local-llm-translator-pro/hjgincceghgafihgidckiebjkbakkaan
 
 [Badge License]: https://img.shields.io/badge/License-GPLv3-blue.svg
 [Badge Mozilla]: https://img.shields.io/badge/Firefox-Awaiting_review-orange?logo=firefoxbrowser&logoColor=white
-[Badge Chrome]: https://img.shields.io/badge/Chrome-Pending_approval-orange?logo=googlechrome&logoColor=white
+[Badge Chrome]: https://img.shields.io/badge/Chrome-Published-brightgreen?logo=googlechrome&logoColor=white
 [Badge Edge]: https://img.shields.io/badge/Edge-Published-brightgreen?logo=microsoftedge&logoColor=white
